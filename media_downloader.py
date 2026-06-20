@@ -350,12 +350,20 @@ async def download_media(
                 node.chat_id, message, _media, _type
             )
             media_size = getattr(_media, "file_size", 0)
+            file_unique_id = getattr(_media, "file_unique_id", "")
 
             ui_file_name = file_name
             if app.hide_file_name:
                 ui_file_name = f"****{os.path.splitext(file_name)[-1]}"
 
             if _can_download(_type, file_formats, file_format):
+                if file_unique_id and app.is_file_downloaded(file_unique_id):
+                    logger.info(
+                        f"id={message.id} {ui_file_name} "
+                        f"already downloaded (same file_unique_id={file_unique_id}), skipped.\n"
+                    )
+                    return DownloadStatus.SkipDownload, None
+
                 if _is_exist(file_name):
                     file_size = os.path.getsize(file_name)
                     if file_size or file_size == media_size:
@@ -400,7 +408,8 @@ async def download_media(
                 _check_download_finish(media_size, temp_download_path, ui_file_name)
                 await asyncio.sleep(0.5)
                 _move_to_download_path(temp_download_path, file_name)
-                # TODO: if not exist file size or media
+                if file_unique_id:
+                    app.mark_file_downloaded(file_unique_id)
                 return DownloadStatus.SuccessDownload, file_name
         except pyrogram.errors.exceptions.bad_request_400.BadRequest:  # ty:ignore[possibly-missing-submodule]
             logger.warning(f"Message[{message.id}]: {_t('file reference expired, refetching')}...")

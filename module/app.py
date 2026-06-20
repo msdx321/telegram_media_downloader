@@ -160,6 +160,7 @@ class Application:
         self.is_running = True
 
         self.total_download_task = 0
+        self.downloaded_file_ids: dict[str, None] = {}
 
         self.chat_download_config: dict = {}
 
@@ -363,6 +364,9 @@ class Application:
                         )
                         for it in self.chat_download_config[chat_id].ids_to_retry:
                             self.chat_download_config[chat_id].ids_to_retry_dict[it] = True
+
+        if app_data.get("downloaded_file_ids"):
+            self.downloaded_file_ids = dict.fromkeys(app_data["downloaded_file_ids"])
         return True
 
     def get_file_save_path(self, media_type: str, chat_title: str, media_datetime: str) -> str:
@@ -511,6 +515,7 @@ class Application:
             self.app_data["chat"][idx]["ids_to_retry"] = value.ids_to_retry
             idx += 1
 
+        self.app_data["downloaded_file_ids"] = list(self.downloaded_file_ids.keys())
         self.config["save_path"] = self.save_path
         self.config["file_path_prefix"] = self.file_path_prefix
 
@@ -645,3 +650,17 @@ class Application:
         self.chat_download_config[node.chat_id].last_read_message_id = max(
             self.chat_download_config[node.chat_id].last_read_message_id, message_id
         )
+
+    def is_file_downloaded(self, file_unique_id: str) -> bool:
+        """Check if a file has already been downloaded by its Telegram file_unique_id."""
+        return file_unique_id in self.downloaded_file_ids
+
+    def mark_file_downloaded(self, file_unique_id: str):
+        """Record a file as downloaded by its Telegram file_unique_id.
+        Caps at 4096 entries; evicts oldest when full."""
+        if file_unique_id in self.downloaded_file_ids:
+            return  # already recorded
+        if len(self.downloaded_file_ids) >= 4096:
+            oldest = next(iter(self.downloaded_file_ids))
+            del self.downloaded_file_ids[oldest]
+        self.downloaded_file_ids[file_unique_id] = None

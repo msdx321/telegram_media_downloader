@@ -85,6 +85,7 @@ def rest_app(conf: dict):
     if os.path.exists(data_test):
         os.remove(data_test)
     app.total_download_task = 0
+    app.downloaded_file_ids = {}
     app.is_running = True
     app.chat_download_config: dict = {}
     # app.already_download_ids_set = set()
@@ -617,6 +618,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
             video=MockVideo(
                 file_name="sample_video.mp4",
                 mime_type="video/mp4",
+                file_unique_id="UNIQUE_VIDEO_5",
             ),
         )
         result = self.loop.run_until_complete(
@@ -636,6 +638,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
             video=MockVideo(
                 file_name="sample_video.mov",
                 mime_type="video/mov",
+                file_unique_id="UNIQUE_VIDEO_6",
             ),
         )
         result = self.loop.run_until_complete(
@@ -656,6 +659,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
             video=MockVideo(
                 file_name="sample_video.mov",
                 mime_type="video/mov",
+                file_unique_id="UNIQUE_VIDEO_7",
             ),
         )
         result = self.loop.run_until_complete(
@@ -671,6 +675,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
             video=MockVideo(
                 file_name="sample_video.mov",
                 mime_type="video/mov",
+                file_unique_id="UNIQUE_VIDEO_8",
             ),
         )
         result = self.loop.run_until_complete(

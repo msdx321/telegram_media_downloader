@@ -55,6 +55,7 @@ class MockAudio:
         self.file_name = kwargs["file_name"]
         self.mime_type = kwargs["mime_type"]
         self.file_id = "AUDIO"
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         if kwargs.get("file_size"):
             self.file_size = kwargs["file_size"]
         else:
@@ -66,6 +67,7 @@ class MockDocument:
         self.file_name = kwargs["file_name"]
         self.mime_type = kwargs["mime_type"]
         self.file_id = "DOCUMENT"
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         if kwargs.get("file_size"):
             self.file_size = kwargs["file_size"]
         else:
@@ -75,7 +77,7 @@ class MockDocument:
 class MockPhoto:
     def __init__(self, **kwargs):
         self.date = kwargs["date"]
-        self.file_unique_id = kwargs["file_unique_id"]
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         self.file_id = "PHOTO"
         if kwargs.get("file_size"):
             self.file_size = kwargs["file_size"]
@@ -88,6 +90,7 @@ class MockVoice:
         self.mime_type = kwargs["mime_type"]
         self.date = kwargs["date"]
         self.file_id = "VOICE"
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         if kwargs.get("file_size"):
             self.file_size = kwargs["file_size"]
         else:
@@ -99,6 +102,7 @@ class MockVideo:
         self.file_name = kwargs.get("file_name")
         self.mime_type = kwargs["mime_type"]
         self.file_id = "VIDEO"
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         if kwargs.get("file_size"):
             self.file_size = kwargs["file_size"]
         else:
@@ -124,6 +128,7 @@ class MockVideoNote:
     def __init__(self, **kwargs):
         self.mime_type = kwargs["mime_type"]
         self.file_id = "VIDEO_NOTE"
+        self.file_unique_id = kwargs.get("file_unique_id", None)
         self.date = kwargs["date"]
 
 
