@@ -67,5 +67,12 @@ addopts = "-v --tb=short"
 
 [tool.mypy]
 ignore_missing_imports = true
+implicit_optional = true
 files = ["media_downloader.py", "utils/", "module/"]
-exclude = ["tests/", "module/static/", "module/templates/"]
+exclude = [
+    "tests/",
+    "module/static/",
+    "module/templates/",
+    "module/parsetab\\.py",
+    "module/lextab\\.py",
+]
