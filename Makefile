@@ -4,11 +4,9 @@ TEST_ARTIFACTS ?= /tmp/coverage
 
 install:
 	uv sync --no-dev
-	uv run python gen_filter_cache.py
 
 dev_install:
 	uv sync
-	uv run python gen_filter_cache.py
 
 lint:
 	uv run ruff check .

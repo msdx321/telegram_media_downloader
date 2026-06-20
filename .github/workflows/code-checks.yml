@@ -23,9 +23,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          uv sync
-          uv run python gen_filter_cache.py
+        run: uv sync
 
       - name: Ruff lint
         run: uv run ruff check .
