@@ -122,12 +122,12 @@ class TaskNode:
     def __init__(
         self,
         chat_id: int | str,
-        from_user_id: int | str = None,
+        from_user_id: int | str | None = None,
         reply_message_id: int = 0,
-        replay_message: str = None,
-        upload_telegram_chat_id: int | str = None,
+        replay_message: str | None = None,
+        upload_telegram_chat_id: int | str | None = None,
         has_protected_content: bool = False,
-        download_filter: str = None,
+        download_filter: str | None = None,
         limit: int = 0,
         start_offset_id: int = 0,
         end_offset_id: int = 0,
@@ -300,13 +300,13 @@ class ChatDownloadConfig:
         self.ids_to_retry_dict: dict = {}
 
         # need storage
-        self.download_filter: str = None
+        self.download_filter: str | None = None
         self.ids_to_retry: list = []
         self.last_read_message_id = 0
         self.total_task: int = 0
         self.finish_task: int = 0
         self.need_check: bool = False
-        self.upload_telegram_chat_id: int | str = None
+        self.upload_telegram_chat_id: int | str | None = None
         self.node: TaskNode = TaskNode(0)
 
 
@@ -656,7 +656,7 @@ class Application:
     async def upload_file(
         self,
         local_file_path: str,
-        progress_callback: Callable = None,
+        progress_callback: Callable | None = None,
         progress_args: tuple = (),
     ) -> bool:
         """Upload file"""
@@ -910,7 +910,7 @@ class Application:
         return False
 
     def set_caption_name(
-        self, chat_id: int | str, media_group_id: str | None, caption: str
+        self, chat_id: int | str, media_group_id: int | str | None, caption: str
     ):
         """set caption name map
 
@@ -934,7 +934,7 @@ class Application:
             self.caption_name_dict[chat_id] = {media_group_id: caption}
 
     def get_caption_name(
-        self, chat_id: int | str, media_group_id: str | None
+        self, chat_id: int | str, media_group_id: int | str | None
     ) -> str | None:
         """set caption name map
                 media_group_id: Optional[str]
@@ -954,7 +954,7 @@ class Application:
         return str(self.caption_name_dict[chat_id][media_group_id])
 
     def set_caption_entities(
-        self, chat_id: int | str, media_group_id: str | None, caption_entities
+        self, chat_id: int | str, media_group_id: int | str | None, caption_entities
     ):
         """
         set caption entities map
@@ -967,7 +967,7 @@ class Application:
         else:
             self.caption_entities_dict[chat_id] = {media_group_id: caption_entities}
 
-    def get_caption_entities(self, chat_id: int | str, media_group_id: str | None):
+    def get_caption_entities(self, chat_id: int | str, media_group_id: int | str | None):
         """
         get caption entities map
         """

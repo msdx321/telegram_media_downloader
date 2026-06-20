@@ -2,7 +2,7 @@
 
 import json
 
-import requests  # type: ignore
+import requests
 from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
@@ -11,7 +11,7 @@ from . import __version__
 
 
 # pylint: disable = C0301
-def get_latest_release(proxy_config: dict = None) -> dict:
+def get_latest_release(proxy_config: dict | None = None) -> dict:
     """
     Get the latest release information.
 
@@ -62,7 +62,7 @@ def get_latest_release(proxy_config: dict = None) -> dict:
     return {}
 
 
-def check_for_updates(proxy_config: dict = None):
+def check_for_updates(proxy_config: dict | None = None):
     """Checks for new releases.
 
     Using Github API checks for new release and prints information of new release if available.

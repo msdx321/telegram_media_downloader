@@ -81,11 +81,11 @@ def get_utf16_length(text: str) -> int:
 
 def get_media_obj(
     message: pyrogram.types.Message,
-    media: str = None,
-    caption: str = None,
-    caption_entities: list[pyrogram.types.MessageEntity] = None,
+    media: str | None = None,
+    caption: str | None = None,
+    caption_entities: list[pyrogram.types.MessageEntity] | None = None,
     parse_mode: enums.ParseMode | None = None,
-) -> types.InputMediaPhoto | types.InputMediaVideo | types.InputMediaAudio | types.InputMediaDocument | types.InputMediaAnimation:
+) -> types.InputMediaPhoto | types.InputMediaVideo | types.InputMediaAudio | types.InputMediaDocument | types.InputMediaAnimation | None:
     """Get media object"""
     media_type = message.media
     if media_type == pyrogram.enums.MessageMediaType.PHOTO:
@@ -274,7 +274,7 @@ async def upload_telegram_chat(
     node: TaskNode,
     message: pyrogram.types.Message,
     download_status: DownloadStatus,
-    file_name: str = None,
+    file_name: str | None = None,
 ):
     """Upload telegram chat"""
     # upload telegram
@@ -320,7 +320,7 @@ async def upload_telegram_chat_message(
     app: Application,
     node: TaskNode,
     message: pyrogram.types.Message,
-    file_name: str = None,
+    file_name: str | None = None,
 ) -> ForwardStatus:
     """See upload telegram_chat"""
     forward_status = ForwardStatus.FailedForward
@@ -684,7 +684,7 @@ async def _upload_telegram_chat_message(
     app: Application,
     node: TaskNode,
     message: pyrogram.types.Message,
-    file_name: str = None,
+    file_name: str | None = None,
 ):
     """
     Uploads a Telegram chat message to the destination chat.
@@ -1240,7 +1240,7 @@ async def check_user_permission(
     return False
 
 
-def set_meta_data(meta_data: MetaData, message: pyrogram.types.Message, caption: str = None):
+def set_meta_data(meta_data: MetaData, message: pyrogram.types.Message, caption: str | None = None):
     """Get all meta data"""
     # message
     meta_data.message_date = getattr(message, "date", None)
@@ -1413,7 +1413,7 @@ class HookClient(pyrogram.Client):
             ConnectionError: If the client is already connected.
 
         """
-        if self.is_connected:  # type: ignore
+        if self.is_connected:
             raise ConnectionError("Client is already connected")
 
         await self.load_session()
@@ -1468,10 +1468,10 @@ async def forward_messages(
     chat_id: int | str | None,
     from_chat_id: int | str,
     message_ids: int | Iterable[int],
-    disable_notification: bool = None,
-    schedule_date: datetime = None,
+    disable_notification: bool | None = None,
+    schedule_date: datetime | None = None,
     protect_content: bool = None,
-    drop_author: bool = None,
+    drop_author: bool | None = None,
     topic_id: int = None,
     caption: str = None,
     caption_entities: list[pyrogram.types.MessageEntity] = None,
@@ -1479,7 +1479,7 @@ async def forward_messages(
     """Forward messages of any kind."""
 
     is_iterable = not isinstance(message_ids, int)
-    message_ids = list(message_ids) if is_iterable else [message_ids]  # type: ignore
+    message_ids = list(message_ids) if is_iterable else [message_ids]
 
     r = await client.invoke(
         pyrogram.raw.functions.messages.ForwardMessages(

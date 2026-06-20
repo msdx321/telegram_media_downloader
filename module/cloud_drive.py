@@ -90,7 +90,7 @@ class CloudDrive:
         drive_config: CloudDriveConfig,
         save_path: str,
         local_file_path: str,
-        progress_callback: Callable = None,
+        progress_callback: Callable | None = None,
         progress_args: tuple = (),
     ) -> bool:
         """Use Rclone upload file"""

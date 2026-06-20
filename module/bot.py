@@ -765,7 +765,7 @@ async def direct_download(
     chat_id: str | int,
     message: pyrogram.types.Message,
     download_message: pyrogram.types.Message,
-    client: pyrogram.Client = None,
+    client: pyrogram.Client | None = None,
 ):
     """Direct Download"""
 
@@ -960,7 +960,7 @@ async def get_forward_task_node(
     dst_chat_link: str,
     offset_id: int = 0,
     end_offset_id: int = 0,
-    download_filter: str = None,
+    download_filter: str | None = None,
     reply_comment: bool = False,
 ):
     """Get task node"""
@@ -1196,7 +1196,7 @@ async def forward_msg(node: TaskNode, message_id: int):
 
     chat_download_config = ChatDownloadConfig()
     chat_download_config.last_read_message_id = message_id
-    chat_download_config.download_filter = node.download_filter  # type: ignore
+    chat_download_config.download_filter = node.download_filter
 
     await _bot.download_chat_task(_bot.client, chat_download_config, node)
 
