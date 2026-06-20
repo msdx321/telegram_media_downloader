@@ -1,4 +1,4 @@
-FROM python:3.11.9-alpine AS build
+FROM python:3.11.9-alpine AS compile-image
 
 WORKDIR /app
 
@@ -16,15 +16,15 @@ RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
 RUN apk add --no-cache rclone
 
 
-FROM python:3.11.9-alpine AS runtime
+FROM python:3.11.9-alpine AS runtime-image
 
 WORKDIR /app
 
 # Copy virtual env from build stage
-COPY --from=build /app/.venv /app/.venv
+COPY --from=compile-image /app/.venv /app/.venv
 
 # Copy rclone to the path expected by the app
-COPY --from=build /usr/bin/rclone /app/rclone/rclone
+COPY --from=compile-image /usr/bin/rclone /app/rclone/rclone
 
 # Copy app source code
 COPY . /app
