@@ -714,9 +714,7 @@ class Application:
                 res = os.path.join(res, media_type)
         return res
 
-    def get_file_name(
-        self, message_id: int, file_name: str | None, caption: str | None
-    ) -> str:
+    def get_file_name(self, message_id: int, file_name: str | None, caption: str | None) -> str:
         """Get file save path prefix.
 
         Parameters
@@ -910,9 +908,7 @@ class Application:
 
         return False
 
-    def set_caption_name(
-        self, chat_id: int | str, media_group_id: int | str | None, caption: str
-    ):
+    def set_caption_name(self, chat_id: int | str, media_group_id: int | str | None, caption: str):
         """set caption name map
 
         Parameters
@@ -934,9 +930,7 @@ class Application:
         else:
             self.caption_name_dict[chat_id] = {media_group_id: caption}
 
-    def get_caption_name(
-        self, chat_id: int | str, media_group_id: int | str | None
-    ) -> str | None:
+    def get_caption_name(self, chat_id: int | str, media_group_id: int | str | None) -> str | None:
         """set caption name map
                 media_group_id: Optional[str]
             The unique identifier of a media message group this message belongs to.

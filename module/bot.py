@@ -43,8 +43,6 @@ from utils.meta_data import MetaData
 # pylint: disable = C0301, R0902
 
 
-
-
 class DownloadBot:
     """Download bot"""
 
@@ -307,6 +305,7 @@ class DownloadBot:
 
 _bot = DownloadBot()
 
+
 def _get_app() -> Application:
     """Get global app instance, asserted non-None."""
     assert _bot.app is not None, "_bot.app not initialized"
@@ -317,7 +316,6 @@ def _get_client() -> pyrogram.Client:
     """Get global client instance, asserted non-None."""
     assert _bot.client is not None, "_bot.client not initialized"
     return _bot.client
-
 
 
 async def start_download_bot(
@@ -1055,7 +1053,9 @@ async def get_forward_task_node(
     )
 
     if target_msg_id and reply_comment:
-        node.reply_to_message = await _get_client().get_discussion_message(dst_chat_id, target_msg_id)
+        node.reply_to_message = await _get_client().get_discussion_message(
+            dst_chat_id, target_msg_id
+        )
 
     _bot.add_task_node(node)
 

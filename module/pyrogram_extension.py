@@ -85,7 +85,14 @@ def get_media_obj(
     caption: str | None = None,
     caption_entities: list[pyrogram.types.MessageEntity] | None = None,
     parse_mode: enums.ParseMode | None = None,
-) -> types.InputMediaPhoto | types.InputMediaVideo | types.InputMediaAudio | types.InputMediaDocument | types.InputMediaAnimation | None:
+) -> (
+    types.InputMediaPhoto
+    | types.InputMediaVideo
+    | types.InputMediaAudio
+    | types.InputMediaDocument
+    | types.InputMediaAnimation
+    | None
+):
     """Get media object"""
     media_type = message.media
     if media_type == pyrogram.enums.MessageMediaType.PHOTO:
