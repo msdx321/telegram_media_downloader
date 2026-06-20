@@ -10,7 +10,7 @@ dependencies = [
     "pyrogram @ https://github.com/tangyoha/pyrogram/archive/refs/heads/patch.zip",
     "PyYAML==5.3.1",
     "rich==12.5.1",
-    "PyTgCrypto==1.2.6",
+    "PyTgCrypto>=1.2.12",
     "loguru==0.6.0",
     "Werkzeug==2.2.2",
     "flask==2.2.2",
