@@ -154,8 +154,6 @@ def _is_exist(file_path: str) -> bool:
     return not os.path.isdir(file_path) and os.path.exists(file_path)
 
 
-
-
 async def _get_media_meta(
     chat_id: int | str,
     message: pyrogram.types.Message,
@@ -297,8 +295,6 @@ async def download_task(client: pyrogram.Client, message: pyrogram.types.Message
     node.total_download_byte += file_size
 
 
-
-
 @record_download_status
 async def download_media(
     client: pyrogram.client.Client,
@@ -338,7 +334,6 @@ async def download_media(
     int
         Current message id.
     """
-
 
     file_name: str = ""
     ui_file_name: str = ""
@@ -453,7 +448,9 @@ def _check_config() -> bool:
     import utils
 
     console = Console()
-    console.log(f"[bold]Telegram Media Downloader v{utils.__version__}[/bold],\n[i]{utils.__copyright__}[/i]")
+    console.log(
+        f"[bold]Telegram Media Downloader v{utils.__version__}[/bold],\n[i]{utils.__copyright__}[/i]"
+    )
     console.log(f"Licensed under the terms of the {utils.__license__}", end="\n\n")
     try:
         _load_config()

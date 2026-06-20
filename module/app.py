@@ -66,8 +66,7 @@ class TaskNode:
     def is_finish(self):
         """If is finish"""
         return self.is_stop_transmission or (
-            self.is_running
-            and self.total_task == self.total_download_task
+            self.is_running and self.total_task == self.total_download_task
         )
 
     def stop_transmission(self):

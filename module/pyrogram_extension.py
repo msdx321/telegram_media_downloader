@@ -175,6 +175,7 @@ def set_meta_data(meta_data: MetaData, message: pyrogram.types.Message, caption:
 # HookClient — custom Pyrogram Client with configurable start timeout
 # ---------------------------------------------------------------------------
 
+
 class HookSession(pyrogram.session.Session):  # ty:ignore[possibly-missing-submodule]
     """Hook Session"""
 
