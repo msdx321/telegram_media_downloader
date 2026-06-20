@@ -597,17 +597,22 @@ async def download_all_chat(client: pyrogram.Client):
 
 
 async def run_until_all_task_finish():
-    """Normal download"""
+    """Periodically re-check all chats; only stops on SIGINT."""
     while True:
         finish: bool = True
         for _, value in app.chat_download_config.items():
             if not value.need_check or value.total_task != value.finish_task:
                 finish = False
 
-        if (not app.bot_token and finish) or app.restart_program:
-            break
-
-        await asyncio.sleep(1)
+        if finish:
+            # All chats up-to-date — wait, then re-scan
+            logger.info(f"{_t('All chats up-to-date, re-checking in 10 minutes')}...")
+            await asyncio.sleep(600)  # ponytail: 10 min poll interval
+            for _, value in app.chat_download_config.items():
+                value.need_check = False
+            app.loop.create_task(download_all_chat(app.client))  # ty:ignore[unresolved-attribute]
+        else:
+            await asyncio.sleep(1)
 
 
 def _exec_loop():
@@ -648,6 +653,7 @@ def main():
 
         set_max_concurrent_transmissions(client, app.max_concurrent_transmissions)
 
+        app.client = client  # store for re-polling  # ty:ignore[unresolved-attribute]
         app.loop.run_until_complete(start_server(client))
         logger.success(_t("Successfully started (Press Ctrl+C to stop)"))
 
