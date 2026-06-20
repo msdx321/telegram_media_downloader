@@ -1,5 +1,4 @@
 import datetime
-import platform
 
 from pyrogram.file_id import PHOTO_TYPES, FileType
 
@@ -128,11 +127,9 @@ class MockVideoNote:
         self.date = kwargs["date"]
 
 
+# ponytail: was Windows/ separator switching; Linux-only now — identity pass-through
 def platform_generic_path(_path: str) -> str:
-    platform_specific_path: str = _path
-    if platform.system() == "Windows":
-        platform_specific_path = platform_specific_path.replace("/", "\\")
-    return platform_specific_path
+    return _path
 
 
 def get_file_type(file_id: str):

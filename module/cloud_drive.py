@@ -13,8 +13,6 @@ from zipfile import ZipFile
 
 from loguru import logger
 
-from utils import platform
-
 
 # pylint: disable = R0902
 class CloudDriveConfig:
@@ -25,9 +23,7 @@ class CloudDriveConfig:
         enable_upload_file: bool = False,
         before_upload_file_zip: bool = False,
         after_upload_file_delete: bool = True,
-        rclone_path: str = os.path.join(
-            os.path.abspath("."), "rclone", f"rclone{platform.get_exe_ext()}"
-        ),
+        rclone_path: str = os.path.join(os.path.abspath("."), "rclone", "rclone"),
         remote_dir: str = "",
         upload_adapter: str = "rclone",
     ):

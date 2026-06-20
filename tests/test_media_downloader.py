@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import platform
 import queue
 import sys
 import unittest
@@ -45,8 +44,6 @@ from .test_common import (
 )
 
 MOCK_DIR: str = "/root/project"
-if platform.system() == "Windows":
-    MOCK_DIR = "\\root\\project"
 MOCK_CONF = {
     "api_id": 123,
     "api_hash": "hasw5Tgawsuj67",
