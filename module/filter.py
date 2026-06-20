@@ -10,7 +10,6 @@ from utils.format import get_byte_from_str
 from utils.meta_data import MetaData, NoneObj, ReString
 
 
-# pylint: disable = R0904
 class BaseFilter:
     """for normal filter"""
 
@@ -314,7 +313,6 @@ class BaseFilter:
         p[0] = ReString(p[1])
         self._output("RESTRING : " + p[0].re_string)
 
-    # pylint: disable = C0116
     def p_error(self, p):
         if p:
             raise ValueError(f"Syntax error at '{p.value}'")

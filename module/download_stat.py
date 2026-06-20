@@ -38,7 +38,6 @@ def get_download_state() -> DownloadState:
     return _download_state
 
 
-# pylint: disable = W0603
 def set_download_state(state: DownloadState):
     """set download state"""
     global _download_state
@@ -56,7 +55,6 @@ async def update_download_status(
 ):
     """update_download_status"""
     cur_time = time.time()
-    # pylint: disable = W0603
     global _total_download_speed
     global _total_download_size
     global _last_download_time

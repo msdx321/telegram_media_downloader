@@ -22,7 +22,6 @@ class Link:
 def format_byte(size: float, dot=2):
     """format byte"""
 
-    # pylint: disable = R0912
     if 0 <= size < 1:
         human_size = str(round(size / 0.125, dot)) + "b"
     elif 1 <= size < 1024:

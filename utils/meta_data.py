@@ -15,8 +15,6 @@ class NoneObj:
         pass
 
 
-# pylint: disable=R0902
-# pylint: disable=R0913
 class MetaData:
     """
     * `message_date` : - Date the message was sent

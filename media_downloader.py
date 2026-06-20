@@ -12,7 +12,6 @@ from pyrogram.types import Audio, Document, Photo, Video, VideoNote, Voice
 from rich.logging import RichHandler
 
 from module.app import Application, ChatDownloadConfig, DownloadStatus, TaskNode
-from module.bot import start_download_bot, stop_download_bot
 from module.download_stat import update_download_status
 from module.get_chat_history_v2 import get_chat_history_v2
 from module.language import _t
@@ -21,18 +20,13 @@ from module.pyrogram_extension import (
     fetch_message,
     get_extension,
     record_download_status,
-    report_bot_download_status,
     set_max_concurrent_transmissions,
     set_meta_data,
-    update_cloud_upload_stat,
-    upload_telegram_chat,
 )
 from module.web import init_web
 from utils.format import truncate_filename, validate_title
 from utils.log import LogFilter
-from utils.meta import print_meta
 from utils.meta_data import MetaData
-from utils.updates import check_for_updates  # noqa: F401
 
 logging.basicConfig(
     level=logging.INFO,
@@ -160,7 +154,6 @@ def _is_exist(file_path: str) -> bool:
     return not os.path.isdir(file_path) and os.path.exists(file_path)
 
 
-# pylint: disable = R0912
 
 
 async def _get_media_meta(
@@ -184,7 +177,6 @@ async def _get_media_meta(
         file_name, file_format
     """
     if _type in ["audio", "document", "video"]:
-        # pylint: disable = C0301
         file_format: str | None = media_obj.mime_type.split("/")[-1]  # type: ignore
     else:
         file_format = None
@@ -201,7 +193,6 @@ async def _get_media_meta(
         datetime_dir_name = "0"
 
     if _type in ["voice", "video_note"]:
-        # pylint: disable = C0209
         file_format = media_obj.mime_type.split("/")[-1]  # type: ignore
         file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
         file_name = "{} - {}_{}.{}".format(
@@ -289,7 +280,7 @@ async def save_msg_to_file(app, chat_id: int | str, message: pyrogram.types.Mess
 
 
 async def download_task(client: pyrogram.Client, message: pyrogram.types.Message, node: TaskNode):
-    """Download and Forward media"""
+    """Download media"""
 
     download_status, file_name = await download_media(
         client, message, app.media_types, app.file_formats, node
@@ -298,42 +289,14 @@ async def download_task(client: pyrogram.Client, message: pyrogram.types.Message
     if app.enable_download_txt and message.text and not message.media:
         download_status, file_name = await save_msg_to_file(app, node.chat_id, message)
 
-    if not node.bot:
-        app.set_download_id(node, message.id, download_status)
+    app.set_download_id(node, message.id, download_status)
 
     node.download_status[message.id] = download_status
-
+    node.stat(download_status)
     file_size = os.path.getsize(file_name) if file_name else 0
-
-    await upload_telegram_chat(
-        client,
-        node.upload_user if node.upload_user else client,
-        app,
-        node,
-        message,
-        download_status,
-        file_name,
-    )
-
-    # rclone upload
-    if not node.upload_telegram_chat_id and download_status is DownloadStatus.SuccessDownload:
-        ui_file_name = file_name
-        if app.hide_file_name:
-            ui_file_name = f"****{os.path.splitext(file_name)[-1]}"
-        if await app.upload_file(
-            file_name, update_cloud_upload_stat, (node, message.id, ui_file_name)
-        ):
-            node.upload_success_count += 1
-
-    await report_bot_download_status(
-        node.bot,  # ty:ignore[invalid-argument-type]
-        node,
-        download_status,
-        file_size,
-    )
+    node.total_download_byte += file_size
 
 
-# pylint: disable = R0915,R0914
 
 
 @record_download_status
@@ -376,7 +339,6 @@ async def download_media(
         Current message id.
     """
 
-    # pylint: disable = R0912
 
     file_name: str = ""
     ui_file_name: str = ""
@@ -450,7 +412,6 @@ async def download_media(
             await asyncio.sleep(RETRY_TIME_OUT)
             message = await fetch_message(client, message)
             if _check_timeout(retry, message.id):
-                # pylint: disable = C0301
                 logger.error(
                     f"Message[{message.id}]: "
                     f"{_t('file reference expired for 3 retries, download skipped.')}"
@@ -460,7 +421,6 @@ async def download_media(
             logger.warning("Message[{}]: FlowWait {}", message.id, wait_err.value)
             _check_timeout(retry, message.id)
         except TypeError:
-            # pylint: disable = C0301
             logger.warning(
                 f"{_t('Timeout Error occurred when downloading Message')}[{message.id}], "
                 f"{_t('retrying after')} {RETRY_TIME_OUT} {_t('seconds')}"
@@ -471,7 +431,6 @@ async def download_media(
                     f"Message[{message.id}]: {_t('Timing out after 3 reties, download skipped.')}"
                 )
         except Exception as e:
-            # pylint: disable = C0301
             logger.error(
                 f"Message[{message.id}]: "
                 f"{_t('could not be downloaded due to following exception')}:\n[{e}].",
@@ -489,7 +448,13 @@ def _load_config():
 
 def _check_config() -> bool:
     """Check config"""
-    print_meta(logger)
+    from rich.console import Console
+
+    import utils
+
+    console = Console()
+    console.log(f"[bold]Telegram Media Downloader v{utils.__version__}[/bold],\n[i]{utils.__copyright__}[/i]")
+    console.log(f"Licensed under the terms of the {utils.__license__}", end="\n\n")
     try:
         _load_config()
         logger.add(
@@ -569,15 +534,6 @@ async def download_chat_task(
             await add_download_task(message, node)
         else:
             node.download_status[message.id] = DownloadStatus.SkipDownload
-            if message.media_group_id:
-                await upload_telegram_chat(
-                    client,
-                    node.upload_user,  # ty:ignore[invalid-argument-type]
-                    app,
-                    node,
-                    message,
-                    DownloadStatus.SkipDownload,
-                )
 
     chat_download_config.need_check = True
     chat_download_config.total_task = node.total_task
@@ -662,10 +618,6 @@ def main():
             task = app.loop.create_task(worker(client))
             tasks.append(task)
 
-        if app.bot_token:
-            app.loop.run_until_complete(
-                start_download_bot(app, client, add_download_task, download_chat_task)
-            )
         _exec_loop()
     except KeyboardInterrupt:
         logger.info(_t("KeyboardInterrupt"))
@@ -673,8 +625,6 @@ def main():
         logger.exception("{}", e)
     finally:
         app.is_running = False
-        if app.bot_token:
-            app.loop.run_until_complete(stop_download_bot())
         app.loop.run_until_complete(stop_server(client))
         for task in tasks:
             task.cancel()
@@ -683,10 +633,8 @@ def main():
         logger.info(f"{_t('update config')}......")
         app.update_config()
         logger.success(
-            f"{_t('Updated last read message_id to config file')},"
-            f"{_t('total download')} {app.total_download_task}, "
-            f"{_t('total upload file')} "
-            f"{app.cloud_drive_config.total_upload_success_file_count}"
+            f"{_t('Updated last read message_id to config file')}, "
+            f"{_t('total download')} {app.total_download_task}"
         )
 
 

@@ -1,72 +1,42 @@
 .idea/
 *.pyc
 *.pid
-*.cfg
 *.db
 *.env
 .DS_Store
 .cache/
 .mypy_cache/
+.ruff_cache/
 .coverage
-settings.json
 
-# Distribution / packaging
+# Python
 .Python
 .pytest_cache
 .python-version
 env/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-logs/
-parts/
-sdist/
-share/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# virtualenv
+__pycache__/
 .venv
 venv/
 ENV/
-bin/
-include/
-pip-selfcheck.json
-lib64
 
-#Telegram Sessions
+# Telegram sessions
 *.session
 *.session-journal
 
-#Downloaded documents
-documents/
-audio/
-document/
-photo/
-voice/
-video/
-video_note/
-parser.out
-parsetab.py
-local_test/
-.vscode
-TODO.md
-log/
-temp/
+# User config (copy from example/)
 config.yaml
 data.yaml
-*.scss
-*.css.map
+docker-compose.yaml
+
+# Runtime dirs
+downloads/
+log/
+temp/
+sessions/
+
+# PLY artifacts
+parser.out
+parsetab.py

@@ -18,7 +18,6 @@ _language = Language.EN
 
 def set_language(language: Language):
     """Set Lanaguage"""
-    # pylint: disable = W0603
     global _language
     _language = language
 

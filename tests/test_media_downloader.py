@@ -21,7 +21,6 @@ from media_downloader import (
     save_msg_to_file,
 )
 from module.app import Application, DownloadStatus, TaskNode
-from module.cloud_drive import CloudDriveConfig
 from module.pyrogram_extension import (
     reset_download_cache,
 )
@@ -102,7 +101,7 @@ def rest_app(conf: dict):
     app.file_name_prefix: list[str] = ["message_id", "file_name"]
     app.file_name_prefix_split: str = " - "
     app.log_file_path = os.path.join(os.path.abspath("."), "log")
-    app.cloud_drive_config = CloudDriveConfig()
+    app.cloud_drive_config = None  # ponytail: upload was removed; keep attr for compat
     app.hide_file_name = False
     app.caption_name_dict: dict = {}
     app.max_concurrent_transmissions: int = 1
@@ -336,16 +335,11 @@ class MockClient:
         return True
 
 
-def check_for_updates(_: dict = None):
-    pass
-
-
 @mock.patch("media_downloader.get_extension", new=mock_get_extension)
 @mock.patch("module.pyrogram_extension.get_extension", new=mock_get_extension)
 @mock.patch("media_downloader.fetch_message", new=new_fetch_message)
 @mock.patch("media_downloader.get_chat_history_v2", new=get_chat_history)
 @mock.patch("media_downloader.RETRY_TIME_OUT", new=0)
-@mock.patch("media_downloader.check_for_updates", new=check_for_updates)
 class MediaDownloaderTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -935,7 +929,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
         main()
 
         mock_logger.success.assert_called_with(
-            "Updated last read message_id to config file,total download 0, total upload file 0"
+            "Updated last read message_id to config file, total download 0"
         )
 
     @mock.patch("media_downloader.app.pre_run", new=raise_keyboard_interrupt)
@@ -949,7 +943,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
 
         mock_logger.info.assert_any_call("KeyboardInterrupt")
         mock_logger.success.assert_called_with(
-            "Updated last read message_id to config file,total download 0, total upload file 0"
+            "Updated last read message_id to config file, total download 0"
         )
 
     @mock.patch("media_downloader.app.pre_run", new=raise_exception)
@@ -962,7 +956,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
         main()
 
         mock_logger.success.assert_called_with(
-            "Updated last read message_id to config file,total download 0, total upload file 0"
+            "Updated last read message_id to config file, total download 0"
         )
 
     @mock.patch("media_downloader._load_config", new=load_config)

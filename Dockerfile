@@ -12,9 +12,6 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY pyproject.toml requirements.txt ./
 RUN grep -v '^-e \.' requirements.txt | uv pip install --system --no-cache -r /dev/stdin
 
-# Install rclone (runtime binary)
-RUN apk add --no-cache rclone
-
 
 FROM python:3.11.9-alpine AS runtime-image
 
@@ -23,13 +20,7 @@ WORKDIR /app
 # Copy installed deps from build stage
 COPY --from=compile-image /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
-# Copy rclone to the path expected by the app
-COPY --from=compile-image /usr/bin/rclone /app/rclone/rclone
-
 # Copy app source code
 COPY . /app
-
-# Pre-generate filter cache
-RUN python gen_filter_cache.py
 
 CMD ["python", "media_downloader.py"]

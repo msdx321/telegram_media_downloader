@@ -4,8 +4,6 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 
 import pyrogram
-
-# pylint: disable = W0611
 from pyrogram import raw, types, utils
 
 
@@ -49,7 +47,6 @@ async def get_chunk_v2(
     return messages
 
 
-# pylint: disable = C0301
 async def get_chat_history_v2(
     self: pyrogram.Client,
     chat_id: int | str,

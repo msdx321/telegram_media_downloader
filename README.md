@@ -75,29 +75,22 @@ pip3 install -r requirements.txt
 ```
 
 ## Docker
-> For more detailed installation tutorial, please check the wiki
 
 Make sure you have **docker** and **docker-compose** installed
 ```sh
-docker pull tangyoha/telegram_media_downloader:latest
-mkdir -p ~/app && mkdir -p ~/app/log/ && cd ~/app
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/master/docker-compose.yaml -O docker-compose.yaml
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/master/config.yaml -O config.yaml
-wget https://raw.githubusercontent.com/tangyoha/telegram_media_downloader/master/data.yaml -O data.yaml
-# vi config.yaml and docker-compose.yaml
+git clone https://github.com/tangyoha/telegram_media_downloader.git
+cd telegram_media_downloader
+
+# Copy and customize
+cp example/config.yaml .
+cp example/data.yaml .
+cp example/docker-compose.yaml .
 vi config.yaml
 
-# The first time you need to start the foreground
-# enter your phone number and code, then exit(ctrl + c)
+# Build and run foreground to authenticate (enter phone number and code, then Ctrl+C)
 docker-compose run --rm telegram_media_downloader
 
-# After performing the above operations, all subsequent startups will start in the background
-docker-compose up -d
-
-# Upgrade
-docker pull tangyoha/telegram_media_downloader:latest
-cd ~/app
-docker-compose down
+# Run in background
 docker-compose up -d
 ```
 
