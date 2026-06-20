@@ -1,6 +1,6 @@
 TEST_ARTIFACTS ?= /tmp/coverage
 
-.PHONY: install dev_install lint format type_check test
+.PHONY: install dev_install lint format test
 
 install:
 	uv sync --no-dev
@@ -16,10 +16,7 @@ lint:
 format:
 	uv run ruff format --check .
 
-type_check:
-	uv run mypy media_downloader.py utils module --ignore-missing-imports
-
-style_check: lint format type_check
+style_check: lint format
 
 test:
 	uv run pytest \

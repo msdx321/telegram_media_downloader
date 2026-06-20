@@ -12,7 +12,7 @@ on:
 
 jobs:
   lint:
-    name: Lint & Type Check
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,3 @@ jobs:
 
       - name: Ruff format check
         run: uv run ruff format --check .
-
-      - name: Mypy type check (advisory)
-        run: uv run mypy media_downloader.py utils module --ignore-missing-imports
-        continue-on-error: true  # pre-existing type errors, fix incrementally

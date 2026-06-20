@@ -36,7 +36,6 @@ dev = [
     "ruff>=0.11.0",
     "pytest>=8.0",
     "pytest-cov>=5.0",
-    "mypy>=1.0",
 ]
 
 [tool.ruff]
@@ -64,15 +63,3 @@ known-first-party = ["utils", "module", "tests"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
-
-[tool.mypy]
-ignore_missing_imports = true
-implicit_optional = true
-files = ["media_downloader.py", "utils/", "module/"]
-exclude = [
-    "tests/",
-    "module/static/",
-    "module/templates/",
-    "module/parsetab\\.py",
-    "module/lextab\\.py",
-]

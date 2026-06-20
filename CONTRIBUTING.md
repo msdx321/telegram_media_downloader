@@ -105,11 +105,12 @@ You should write
 maybe_primes: List[Optional[int]] = []
 ```
 
-#### Validating type hints
+#### Linting
 
-telegram-media-downloader uses  [mypy](http://mypy-lang.org/)  to statically analyze the code base and type hints. After making any change you can ensure your type hints are correct by running
+telegram-media-downloader uses [ruff](https://docs.astral.sh/ruff/) for linting and formatting. Run:
 ```sh
-make static_type_check
+make lint
+make format
 ```
 
 #### Docstrings and standards
