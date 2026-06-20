@@ -12,13 +12,13 @@ on:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
 
@@ -32,3 +32,7 @@ jobs:
 
       - name: Ruff format check
         run: uv run ruff format --check .
+
+      - name: Ty type check (advisory)
+        run: uv run ty check media_downloader.py utils module
+        continue-on-error: true  # pre-existing type errors
