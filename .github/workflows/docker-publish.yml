@@ -28,10 +28,10 @@ jobs:
         echo "exists=$EXISTS" >> $GITHUB_ENV
         echo "exists=$EXISTS" >> $GITHUB_OUTPUT
 
-    - name: Check if pyproject.toml has been modified
+    - name: Check if requirements.txt has been modified
       id: check-requirements
       run: |
-        MODIFIED=$(git diff --name-only HEAD~1 HEAD | grep -w 'pyproject.toml' > /dev/null && echo "true" || echo "false")
+        MODIFIED=$(git diff --name-only HEAD~1 HEAD | grep -w 'requirements.txt' > /dev/null && echo "true" || echo "false")
         echo "modified=$MODIFIED" >> $GITHUB_ENV
         echo "modified=$MODIFIED" >> $GITHUB_OUTPUT
 
