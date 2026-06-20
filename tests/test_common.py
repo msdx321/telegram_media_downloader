@@ -22,28 +22,26 @@ class MockMessage:
     def __init__(self, **kwargs):
         self.id = kwargs.get("id")
         self.media = kwargs.get("media")
-        self.audio = kwargs.get("audio", None)
-        self.document = kwargs.get("document", None)
-        self.photo = kwargs.get("photo", None)
-        self.video = kwargs.get("video", None)
-        self.voice = kwargs.get("voice", None)
-        self.video_note = kwargs.get("video_note", None)
-        self.media_group_id = kwargs.get("media_group_id", None)
-        self.caption = kwargs.get("caption", None)
-        self.text = kwargs.get("text", None)
+        self.audio = kwargs.get("audio")
+        self.document = kwargs.get("document")
+        self.photo = kwargs.get("photo")
+        self.video = kwargs.get("video")
+        self.voice = kwargs.get("voice")
+        self.video_note = kwargs.get("video_note")
+        self.media_group_id = kwargs.get("media_group_id")
+        self.caption = kwargs.get("caption")
+        self.text = kwargs.get("text")
         self.empty = kwargs.get("empty", False)
-        self.from_user = kwargs.get("from_user", None)
-        self.reply_to_message_id = kwargs.get("reply_to_message_id", None)
-        self.caption_entities = kwargs.get("caption_entities", None)
+        self.from_user = kwargs.get("from_user")
+        self.reply_to_message_id = kwargs.get("reply_to_message_id")
+        self.caption_entities = kwargs.get("caption_entities")
 
-        if kwargs.get("dis_chat") == None:
-            self.chat = Chat(
-                kwargs.get("chat_id", None), kwargs.get("chat_title", None)
-            )
+        if kwargs.get("dis_chat") is None:
+            self.chat = Chat(kwargs.get("chat_id"), kwargs.get("chat_title"))
         else:
-            self.chat = kwargs.get("chat", None)
+            self.chat = kwargs.get("chat")
         self.date: datetime = None
-        if kwargs.get("date") != None:
+        if kwargs.get("date") is not None:
             self.date = kwargs["date"]
 
 

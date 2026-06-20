@@ -65,9 +65,7 @@ def run_web_server(app: Application):
     Runs a web server using the Flask framework.
     """
 
-    get_flask_app().run(
-        app.web_host, app.web_port, debug=app.debug_web, use_reloader=False
-    )
+    get_flask_app().run(app.web_host, app.web_port, debug=app.debug_web, use_reloader=False)
 
 
 # pylint: disable = W0603
@@ -206,11 +204,11 @@ def get_download_list():
                 + '", "filename":"'
                 + os.path.basename(value["file_name"])
                 + '", "total_size":"'
-                + f'{format_byte(value["total_size"])}'
+                + f"{format_byte(value['total_size'])}"
                 + '" ,"download_progress":"'
             )
             result += (
-                f'{round(value["down_byte"] / value["total_size"] * 100, 1)}'
+                f"{round(value['down_byte'] / value['total_size'] * 100, 1)}"
                 + '" ,"download_speed":"'
                 + download_speed
                 + '" ,"save_path":"'

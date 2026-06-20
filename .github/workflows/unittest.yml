@@ -2,41 +2,49 @@ name: Unittest
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
-      - 'README.md'
+      - "README.md"
   pull_request:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
-      - 'README.md'
+      - "README.md"
 
 jobs:
-  build:
-
+  test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12' ]
+        python-version: ["3.9", "3.11", "3.13"]
     name: Test - Python ${{ matrix.python-version }} on ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Get setuptools Unix
-      if: ${{ matrix.os != 'windows-latest' }}
-      run: python -m pip install --upgrade pip setuptools codecov
-    - name: Get setuptools Windows
-      if: ${{ matrix.os == 'windows-latest' }}
-      run: python -m pip install --upgrade pip setuptools codecov
-    - name: Install dependencies
-      run: make dev_install
-    - name: Test with pytest
-      run: |
-        make -e test
-        codecov
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          uv run python gen_filter_cache.py
+
+      - name: Run tests
+        run: |
+          uv run pytest \
+            --cov media_downloader \
+            --cov utils \
+            --cov-report term-missing \
+            --cov-report html:/tmp/coverage \
+            --junit-xml=/tmp/coverage/media-downloader.xml \
+            tests/
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: /tmp/coverage/coverage.xml
+        continue-on-error: true

@@ -1,4 +1,5 @@
 """send media group"""
+
 import logging
 import os
 import re
@@ -10,6 +11,7 @@ from pyrogram import raw, types, utils
 from pyrogram.file_id import FileType
 
 log = logging.getLogger(__name__)
+
 
 # pylint: disable = R0915, R0902, R0912
 async def cache_media(
@@ -71,9 +73,7 @@ async def cache_media(
                     )
                 )
             else:
-                media = utils.get_input_media_from_file_id(
-                    media_obj.media, FileType.PHOTO
-                )
+                media = utils.get_input_media_from_file_id(media_obj.media, FileType.PHOTO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
@@ -108,13 +108,11 @@ async def cache_media(
                                 progress_args=progress_args,
                             ),
                             thumb=await client.save_file(media_obj.thumb),
-                            mime_type=client.guess_mime_type(media_obj.media)
-                            or "video/mp4",
+                            mime_type=client.guess_mime_type(media_obj.media) or "video/mp4",
                             nosound_video=True,
                             attributes=[
                                 raw.types.DocumentAttributeVideo(
-                                    supports_streaming=media_obj.supports_streaming
-                                    or None,
+                                    supports_streaming=media_obj.supports_streaming or None,
                                     duration=media_obj.duration,
                                     w=media_obj.width,
                                     h=media_obj.height,
@@ -150,9 +148,7 @@ async def cache_media(
                     )
                 )
             else:
-                media = utils.get_input_media_from_file_id(
-                    media_obj.media, FileType.VIDEO
-                )
+                media = utils.get_input_media_from_file_id(media_obj.media, FileType.VIDEO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
@@ -198,8 +194,7 @@ async def cache_media(
                     raw.functions.messages.UploadMedia(
                         peer=await client.resolve_peer(chat_id),
                         media=raw.types.InputMediaUploadedDocument(
-                            mime_type=client.guess_mime_type(media_obj.media)
-                            or "audio/mpeg",
+                            mime_type=client.guess_mime_type(media_obj.media) or "audio/mpeg",
                             file=await client.save_file(
                                 media_obj.media,
                                 progress=progress,
@@ -243,9 +238,7 @@ async def cache_media(
                     )
                 )
             else:
-                media = utils.get_input_media_from_file_id(
-                    media_obj.media, FileType.AUDIO
-                )
+                media = utils.get_input_media_from_file_id(media_obj.media, FileType.AUDIO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
@@ -289,8 +282,7 @@ async def cache_media(
                     raw.functions.messages.UploadMedia(
                         peer=await client.resolve_peer(chat_id),
                         media=raw.types.InputMediaUploadedDocument(
-                            mime_type=client.guess_mime_type(media_obj.media)
-                            or "application/zip",
+                            mime_type=client.guess_mime_type(media_obj.media) or "application/zip",
                             file=await client.save_file(
                                 media_obj.media,
                                 progress=progress,
@@ -329,9 +321,7 @@ async def cache_media(
                     )
                 )
             else:
-                media = utils.get_input_media_from_file_id(
-                    media_obj.media, FileType.DOCUMENT
-                )
+                media = utils.get_input_media_from_file_id(media_obj.media, FileType.DOCUMENT)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
@@ -365,17 +355,14 @@ async def cache_media(
             )
     else:
         raise ValueError(
-            f"{media_obj.__class__.__name__}"
-            " is not a supported type for send_media_group"
+            f"{media_obj.__class__.__name__} is not a supported type for send_media_group"
         )
 
     return raw.types.InputSingleMedia(
         media=media,
         random_id=client.rnd_id(),
         **await client.parser.parse(
-            media_obj.caption
-            if media_obj.caption and media_obj.caption != "None"
-            else ""
+            media_obj.caption if media_obj.caption and media_obj.caption != "None" else ""
         ),
     )
 

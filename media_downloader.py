@@ -1,4 +1,5 @@
 """Downloads media from telegram."""
+
 import asyncio
 import logging
 import os
@@ -32,6 +33,7 @@ from utils.format import truncate_filename, validate_title
 from utils.log import LogFilter
 from utils.meta import print_meta
 from utils.meta_data import MetaData
+from utils.updates import check_for_updates  # noqa: F401
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,7 +139,7 @@ def _can_download(_type: str, file_formats: dict, file_format: Optional[str]) ->
     """
     if _type in ["audio", "document", "video"]:
         allowed_formats: list = file_formats[_type]
-        if not file_format in allowed_formats and allowed_formats[0] != "all":
+        if file_format not in allowed_formats and allowed_formats[0] != "all":
             return False
     return True
 
@@ -219,9 +221,7 @@ async def _get_media_meta(
 
         file_name_suffix = ".unknown"
         if not file_name:
-            file_name_suffix = get_extension(
-                media_obj.file_id, getattr(media_obj, "mime_type", "")
-            )
+            file_name_suffix = get_extension(media_obj.file_id, getattr(media_obj, "mime_type", ""))
         else:
             # file_name = file_name.split(".")[0]
             _, file_name_without_suffix = os.path.split(os.path.normpath(file_name))
@@ -234,18 +234,14 @@ async def _get_media_meta(
         if caption:
             caption = validate_title(caption)
             app.set_caption_name(chat_id, message.media_group_id, caption)
-            app.set_caption_entities(
-                chat_id, message.media_group_id, message.caption_entities
-            )
+            app.set_caption_entities(chat_id, message.media_group_id, message.caption_entities)
         else:
             caption = app.get_caption_name(chat_id, message.media_group_id)
 
         if not file_name and message.photo:
             file_name = f"{message.photo.file_unique_id}"
 
-        gen_file_name = (
-            app.get_file_name(message.id, file_name, caption) + file_name_suffix
-        )
+        gen_file_name = app.get_file_name(message.id, file_name, caption) + file_name_suffix
 
         file_save_path = app.get_file_save_path(_type, dirname, datetime_dir_name)
 
@@ -268,9 +264,7 @@ async def add_download_task(
     return True
 
 
-async def save_msg_to_file(
-    app, chat_id: Union[int, str], message: pyrogram.types.Message
-):
+async def save_msg_to_file(app, chat_id: Union[int, str], message: pyrogram.types.Message):
     """Write message text into file"""
     dirname = validate_title(
         message.chat.title if message.chat and message.chat.title else str(chat_id)
@@ -295,9 +289,7 @@ async def save_msg_to_file(
     return DownloadStatus.SuccessDownload, file_name
 
 
-async def download_task(
-    client: pyrogram.Client, message: pyrogram.types.Message, node: TaskNode
-):
+async def download_task(client: pyrogram.Client, message: pyrogram.types.Message, node: TaskNode):
     """Download and Forward media"""
 
     download_status, file_name = await download_media(
@@ -325,10 +317,7 @@ async def download_task(
     )
 
     # rclone upload
-    if (
-        not node.upload_telegram_chat_id
-        and download_status is DownloadStatus.SuccessDownload
-    ):
+    if not node.upload_telegram_chat_id and download_status is DownloadStatus.SuccessDownload:
         ui_file_name = file_name
         if app.hide_file_name:
             ui_file_name = f"****{os.path.splitext(file_name)[-1]}"
@@ -458,9 +447,7 @@ async def download_media(
                 # TODO: if not exist file size or media
                 return DownloadStatus.SuccessDownload, file_name
         except pyrogram.errors.exceptions.bad_request_400.BadRequest:
-            logger.warning(
-                f"Message[{message.id}]: {_t('file reference expired, refetching')}..."
-            )
+            logger.warning(f"Message[{message.id}]: {_t('file reference expired, refetching')}...")
             await asyncio.sleep(RETRY_TIME_OUT)
             message = await fetch_message(client, message)
             if _check_timeout(retry, message.id):
@@ -571,9 +558,7 @@ async def download_chat_task(
         if caption:
             caption = validate_title(caption)
             app.set_caption_name(node.chat_id, message.media_group_id, caption)
-            app.set_caption_entities(
-                node.chat_id, message.media_group_id, message.caption_entities
-            )
+            app.set_caption_entities(node.chat_id, message.media_group_id, message.caption_entities)
         else:
             caption = app.get_caption_name(node.chat_id, message.media_group_id)
         set_meta_data(meta_data, message, caption)

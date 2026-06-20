@@ -1,23 +1,17 @@
 """Unittest module for media downloader."""
+
 import sys
 import unittest
 from datetime import datetime
-
-import mock
+from unittest import mock
 
 from module.filter import Filter, MetaData
 from module.pyrogram_extension import set_meta_data
 from tests.test_common import (
-    Chat,
-    Date,
-    MockAudio,
-    MockDocument,
     MockMessage,
     MockPhoto,
     MockUser,
     MockVideo,
-    MockVideoNote,
-    MockVoice,
     get_extension,
 )
 from utils.format import replace_date_time
@@ -82,39 +76,23 @@ class FilterTestCase(unittest.TestCase):
         self.assertEqual(filter_exec(download_filter, "media_file_size > 1024"), True)
 
         # str
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name == 'test.mp4'"), True
-        )
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name == 'test2.mp4'"), False
-        )
+        self.assertEqual(filter_exec(download_filter, "media_file_name == 'test.mp4'"), True)
+        self.assertEqual(filter_exec(download_filter, "media_file_name == 'test2.mp4'"), False)
         # re str
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name == r'test.*mp4'"), True
-        )
+        self.assertEqual(filter_exec(download_filter, "media_file_name == r'test.*mp4'"), True)
 
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name == r'test\.*mp4'"), True
-        )
+        self.assertEqual(filter_exec(download_filter, r"media_file_name == r'test\.*mp4'"), True)
 
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name == r'test2.*mp4'"), False
-        )
+        self.assertEqual(filter_exec(download_filter, "media_file_name == r'test2.*mp4'"), False)
 
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name != r'test2.*mp4'"), True
-        )
-        self.assertEqual(
-            filter_exec(download_filter, "media_file_name != r'test2.*mp4'"), True
-        )
+        self.assertEqual(filter_exec(download_filter, "media_file_name != r'test2.*mp4'"), True)
+        self.assertEqual(filter_exec(download_filter, "media_file_name != r'test2.*mp4'"), True)
 
         # int
         self.assertEqual(filter_exec(download_filter, "media_duration > 60"), False)
         self.assertEqual(filter_exec(download_filter, "media_duration <= 60"), True)
         self.assertEqual(
-            filter_exec(
-                download_filter, "media_width >= 1920 and media_height >= 1080"
-            ),
+            filter_exec(download_filter, "media_width >= 1920 and media_height >= 1080"),
             True,
         )
         self.assertEqual(
@@ -132,15 +110,11 @@ class FilterTestCase(unittest.TestCase):
         # datetime
         # 2020.03
         self.assertEqual(
-            filter_exec(
-                download_filter, "message_date >= 2022.03 and message_date <= 2022.08"
-            ),
+            filter_exec(download_filter, "message_date >= 2022.03 and message_date <= 2022.08"),
             False,
         )
         self.assertEqual(
-            filter_exec(
-                download_filter, "message_date >= 2022.03 and message_date <= 2022.09"
-            ),
+            filter_exec(download_filter, "message_date >= 2022.03 and message_date <= 2022.09"),
             True,
         )
 
@@ -211,9 +185,7 @@ class FilterTestCase(unittest.TestCase):
 
         self.assertEqual(filter_exec(download_filter, "file_size <= 11GB"), True)
 
-        self.assertEqual(
-            filter_exec(download_filter, "1024 * 1024 * 1024 * 11 == 11GB"), True
-        )
+        self.assertEqual(filter_exec(download_filter, "1024 * 1024 * 1024 * 11 == 11GB"), True)
 
         # test caption
         self.assertEqual(filter_exec(download_filter, "caption == r'.*#test.*'"), False)
@@ -223,26 +195,18 @@ class FilterTestCase(unittest.TestCase):
 
         self.assertEqual(filter_exec(download_filter, "media_type == 'audio'"), False)
 
-        self.assertEqual(
-            filter_exec(download_filter, "media_type == r'(video|audio)'"), True
-        )
+        self.assertEqual(filter_exec(download_filter, "media_type == r'(video|audio)'"), True)
 
-        self.assertEqual(
-            filter_exec(download_filter, "media_type != r'(video|audio)'"), False
-        )
+        self.assertEqual(filter_exec(download_filter, "media_type != r'(video|audio)'"), False)
 
         # test file_extension
         self.assertEqual(filter_exec(download_filter, "file_extension == 'mp4'"), True)
 
         self.assertEqual(filter_exec(download_filter, "file_extension == 'mp3'"), False)
 
-        self.assertEqual(
-            filter_exec(download_filter, "file_extension == r'(mp4|mp3)'"), True
-        )
+        self.assertEqual(filter_exec(download_filter, "file_extension == r'(mp4|mp3)'"), True)
 
-        self.assertEqual(
-            filter_exec(download_filter, "file_extension != r'(mp4|mp3)'"), False
-        )
+        self.assertEqual(filter_exec(download_filter, "file_extension != r'(mp4|mp3)'"), False)
 
         # test sender
         self.assertEqual(filter_exec(download_filter, "sender_name == 'coco'"), True)
@@ -322,9 +286,7 @@ class FilterTestCase(unittest.TestCase):
         self.assertEqual(filter_exec(download_filter, "caption == r'.*#中文啊.*'"), False)
 
         self.assertEqual(filter_exec(download_filter, "reply_to_message_id == 4"), True)
-        self.assertEqual(
-            filter_exec(download_filter, "reply_to_message_id != 4"), False
-        )
+        self.assertEqual(filter_exec(download_filter, "reply_to_message_id != 4"), False)
         self.assertEqual(filter_exec(download_filter, "reply_to_message_id >= 4"), True)
 
     def test_check_filter(self):
@@ -404,9 +366,7 @@ class FilterTestCase(unittest.TestCase):
             (False, "Syntax error at EOF"),
         )
         # 2.3.1 custom token
-        self.assertEqual(
-            check_filter_exec(download_filter, "file_size == 3KB"), (True, None)
-        )
+        self.assertEqual(check_filter_exec(download_filter, "file_size == 3KB"), (True, None))
         self.assertEqual(
             check_filter_exec(download_filter, "file_size == 3kb"),
             (False, "Syntax error at 'kb'"),
@@ -423,9 +383,7 @@ class FilterTestCase(unittest.TestCase):
             check_filter_exec(download_filter, "message_date == 2023/0b-05"),
             (False, "Syntax error at 'b'"),
         )
-        self.assertEqual(
-            check_filter_exec(download_filter, "message_date == 2023/01/45")[0], False
-        )
+        self.assertEqual(check_filter_exec(download_filter, "message_date == 2023/01/45")[0], False)
 
     def test_normal(self):
         download_filter = Filter()

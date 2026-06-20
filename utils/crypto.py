@@ -5,7 +5,7 @@ import base64
 from Crypto.Cipher import AES
 
 
-class AesBase64(object):
+class AesBase64:
     """for AES encryption"""
 
     def __init__(self, key: str, iv: str):

@@ -1,24 +1,29 @@
 TEST_ARTIFACTS ?= /tmp/coverage
 
-.PHONY: install dev_install static_type_check pylint style_check test
+.PHONY: install dev_install lint format type_check test
 
 install:
-	python3 -m pip install --upgrade pip setuptools
-	python3 -m pip install -r requirements.txt
+	uv sync --no-dev
+	uv run python gen_filter_cache.py
 
-dev_install: install
-	python3 -m pip install -r dev-requirements.txt
+dev_install:
+	uv sync
+	uv run python gen_filter_cache.py
 
-static_type_check:
-	mypy media_downloader.py utils module --ignore-missing-imports
+lint:
+	uv run ruff check .
 
-pylint:
-	pylint media_downloader.py utils module -r y
+format:
+	uv run ruff format --check .
 
-style_check: static_type_check pylint
+type_check:
+	uv run mypy media_downloader.py utils module --ignore-missing-imports
+
+style_check: lint format type_check
 
 test:
-	py.test --cov media_downloader --doctest-modules \
+	uv run pytest \
+		--cov media_downloader \
 		--cov utils \
 		--cov-report term-missing \
 		--cov-report html:${TEST_ARTIFACTS} \

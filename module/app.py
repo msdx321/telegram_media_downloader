@@ -404,18 +404,12 @@ class Application:
         self.debug_web: bool = False
         self.log_level: str = "INFO"
         self.start_timeout: int = 60
-        self.allowed_user_ids: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq(
-            []
-        )
+        self.allowed_user_ids: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
         self.date_format: str = "%Y_%m"
         self.drop_no_audio_video: bool = False
         self.enable_download_txt: bool = False
-        self.filter_advertisement_list: yaml.comments.CommentedSeq = (
-            yaml.comments.CommentedSeq([])
-        )
-        self.replace_advertisement_list: yaml.comments.CommentedSeq = (
-            yaml.comments.CommentedSeq([])
-        )
+        self.filter_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
+        self.replace_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
         self.group_add_advertisement: dict = {}
         self.forward_limit_call = LimitCall(max_limit_call_times=33)
 
@@ -487,9 +481,7 @@ class Application:
                 ]
 
             if upload_drive_config.get("upload_adapter"):
-                self.cloud_drive_config.upload_adapter = upload_drive_config[
-                    "upload_adapter"
-                ]
+                self.cloud_drive_config.upload_adapter = upload_drive_config["upload_adapter"]
 
         self.file_name_prefix_split = _config.get(
             "file_name_prefix_split", self.file_name_prefix_split
@@ -499,9 +491,7 @@ class Application:
 
         # TODO: add check if expression exist syntax error
 
-        self.max_download_task = _config.get(
-            "max_download_task", self.max_download_task
-        )
+        self.max_download_task = _config.get("max_download_task", self.max_download_task)
 
         self.max_concurrent_transmissions = self.max_download_task * 5
 
@@ -520,15 +510,11 @@ class Application:
             "after_upload_telegram_delete", self.after_upload_telegram_delete
         )
 
-        self.web_login_secret = str(
-            _config.get("web_login_secret", self.web_login_secret)
-        )
+        self.web_login_secret = str(_config.get("web_login_secret", self.web_login_secret))
         self.debug_web = _config.get("debug_web", self.debug_web)
         self.log_level = _config.get("log_level", self.log_level)
 
-        self.start_timeout = get_config(
-            _config, "start_timeout", self.start_timeout, int
-        )
+        self.start_timeout = get_config(_config, "start_timeout", self.start_timeout, int)
 
         self.allowed_user_ids = get_config(
             _config,
@@ -575,7 +561,7 @@ class Application:
             logger.warning(f"config date format error: {e}")
             self.date_format = "%Y_%m"
 
-        forward_limit = _config.get("forward_limit", None)
+        forward_limit = _config.get("forward_limit")
         if forward_limit:
             try:
                 forward_limit = int(forward_limit)
@@ -588,15 +574,13 @@ class Application:
             for item in chat:
                 if "chat_id" in item:
                     self.chat_download_config[item["chat_id"]] = ChatDownloadConfig()
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].last_read_message_id = item.get("last_read_message_id", 0)
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].download_filter = item.get("download_filter", "")
-                    self.chat_download_config[
-                        item["chat_id"]
-                    ].upload_telegram_chat_id = item.get(
+                    self.chat_download_config[item["chat_id"]].last_read_message_id = item.get(
+                        "last_read_message_id", 0
+                    )
+                    self.chat_download_config[item["chat_id"]].download_filter = item.get(
+                        "download_filter", ""
+                    )
+                    self.chat_download_config[item["chat_id"]].upload_telegram_chat_id = item.get(
                         "upload_telegram_chat_id", None
                     )
         elif _config.get("chat_id"):
@@ -606,18 +590,14 @@ class Application:
             self.chat_download_config[self._chat_id] = ChatDownloadConfig()
 
             if _config.get("ids_to_retry"):
-                self.chat_download_config[self._chat_id].ids_to_retry = _config[
-                    "ids_to_retry"
-                ]
+                self.chat_download_config[self._chat_id].ids_to_retry = _config["ids_to_retry"]
                 for it in self.chat_download_config[self._chat_id].ids_to_retry:
-                    self.chat_download_config[self._chat_id].ids_to_retry_dict[
-                        it
-                    ] = True
+                    self.chat_download_config[self._chat_id].ids_to_retry_dict[it] = True
 
             self.chat_download_config[self._chat_id].last_read_message_id = _config[
                 "last_read_message_id"
             ]
-            download_filter_dict = _config.get("download_filter", None)
+            download_filter_dict = _config.get("download_filter")
 
             self.config["chat"] = [
                 {
@@ -629,12 +609,10 @@ class Application:
             ]
 
             if download_filter_dict and self._chat_id in download_filter_dict:
-                self.chat_download_config[
-                    self._chat_id
-                ].download_filter = download_filter_dict[self._chat_id]
-                self.config["chat"][0]["download_filter"] = download_filter_dict[
+                self.chat_download_config[self._chat_id].download_filter = download_filter_dict[
                     self._chat_id
                 ]
+                self.config["chat"][0]["download_filter"] = download_filter_dict[self._chat_id]
 
         # pylint: disable = R1733
         for key, value in self.chat_download_config.items():
@@ -658,30 +636,21 @@ class Application:
         """
         if app_data.get("ids_to_retry"):
             if self._chat_id:
-                self.chat_download_config[self._chat_id].ids_to_retry = app_data[
-                    "ids_to_retry"
-                ]
+                self.chat_download_config[self._chat_id].ids_to_retry = app_data["ids_to_retry"]
                 for it in self.chat_download_config[self._chat_id].ids_to_retry:
-                    self.chat_download_config[self._chat_id].ids_to_retry_dict[
-                        it
-                    ] = True
+                    self.chat_download_config[self._chat_id].ids_to_retry_dict[it] = True
                 self.app_data.pop("ids_to_retry")
         else:
             if app_data.get("chat"):
                 chats = app_data["chat"]
                 for chat in chats:
-                    if (
-                        "chat_id" in chat
-                        and chat["chat_id"] in self.chat_download_config
-                    ):
+                    if "chat_id" in chat and chat["chat_id"] in self.chat_download_config:
                         chat_id = chat["chat_id"]
                         self.chat_download_config[chat_id].ids_to_retry = chat.get(
                             "ids_to_retry", []
                         )
                         for it in self.chat_download_config[chat_id].ids_to_retry:
-                            self.chat_download_config[chat_id].ids_to_retry_dict[
-                                it
-                            ] = True
+                            self.chat_download_config[chat_id].ids_to_retry_dict[it] = True
         return True
 
     async def upload_file(
@@ -714,9 +683,7 @@ class Application:
 
         return ret
 
-    def get_file_save_path(
-        self, media_type: str, chat_title: str, media_datetime: str
-    ) -> str:
+    def get_file_save_path(self, media_type: str, chat_title: str, media_datetime: str) -> str:
         """Get file save path prefix.
 
         Parameters
@@ -787,9 +754,7 @@ class Application:
 
         return validate_title(res)
 
-    def need_skip_message(
-        self, download_config: ChatDownloadConfig, message_id: int
-    ) -> bool:
+    def need_skip_message(self, download_config: ChatDownloadConfig, message_id: int) -> bool:
         """if need skip download message.
 
         Parameters
@@ -836,9 +801,7 @@ class Application:
         """
         # TODO: fix this not exist chat
         if not self.app_data.get("chat") and self.config.get("chat"):
-            self.app_data["chat"] = [
-                {"chat_id": i} for i in range(0, len(self.config["chat"]))
-            ]
+            self.app_data["chat"] = [{"chat_id": i} for i in range(len(self.config["chat"]))]
         idx = 0
         # pylint: disable = R1733
         for key, value in self.chat_download_config.items():
@@ -846,9 +809,10 @@ class Application:
             unfinished_ids = set(value.ids_to_retry)
 
             for it in value.ids_to_retry:
-                if value.node.download_status.get(
-                    it, DownloadStatus.FailedDownload
-                ) in [DownloadStatus.SuccessDownload, DownloadStatus.SkipDownload]:
+                if value.node.download_status.get(it, DownloadStatus.FailedDownload) in [
+                    DownloadStatus.SuccessDownload,
+                    DownloadStatus.SkipDownload,
+                ]:
                     unfinished_ids.remove(it)
 
             for _idx, _value in value.node.download_status.items():
@@ -864,9 +828,7 @@ class Application:
                 self.app_data["chat"].append({})
 
             if value.finish_task:
-                self.config["chat"][idx]["last_read_message_id"] = (
-                    value.last_read_message_id + 1
-                )
+                self.config["chat"][idx]["last_read_message_id"] = value.last_read_message_id + 1
 
             self.app_data["chat"][idx]["chat_id"] = key
             self.app_data["chat"][idx]["ids_to_retry"] = value.ids_to_retry
@@ -911,9 +873,7 @@ class Application:
 
     def load_config(self):
         """Load user config"""
-        with open(
-            os.path.join(os.path.abspath("."), self.config_file), encoding="utf-8"
-        ) as f:
+        with open(os.path.join(os.path.abspath("."), self.config_file), encoding="utf-8") as f:
             config = _yaml.load(f.read())
             if config:
                 self.config = config
@@ -1007,9 +967,7 @@ class Application:
         else:
             self.caption_entities_dict[chat_id] = {media_group_id: caption_entities}
 
-    def get_caption_entities(
-        self, chat_id: Union[int, str], media_group_id: Optional[str]
-    ):
+    def get_caption_entities(self, chat_id: Union[int, str], media_group_id: Optional[str]):
         """
         get caption entities map
         """
@@ -1022,9 +980,7 @@ class Application:
 
         return self.caption_entities_dict[chat_id][media_group_id]
 
-    def set_download_id(
-        self, node: TaskNode, message_id: int, download_status: DownloadStatus
-    ):
+    def set_download_id(self, node: TaskNode, message_id: int, download_status: DownloadStatus):
         """Set Download status"""
         if download_status is DownloadStatus.SuccessDownload:
             self.total_download_task += 1

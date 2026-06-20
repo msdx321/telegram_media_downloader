@@ -5,7 +5,6 @@ import sys
 import unittest
 from unittest import mock
 
-import module.app
 from module.app import Application, ChatDownloadConfig, DownloadStatus
 
 sys.path.append("..")  # Adds higher directory to python modules path.
@@ -29,24 +28,16 @@ class AppTestCase(unittest.TestCase):
 
         app.chat_download_config[123] = ChatDownloadConfig()
         app.chat_download_config[123].last_read_message_id = 13
-        app.chat_download_config[123].node.download_status[
-            6
-        ] = DownloadStatus.Downloading
+        app.chat_download_config[123].node.download_status[6] = DownloadStatus.Downloading
         app.chat_download_config[123].ids_to_retry.append(7)
         # download success
-        app.chat_download_config[123].node.download_status[
-            8
-        ] = DownloadStatus.SuccessDownload
+        app.chat_download_config[123].node.download_status[8] = DownloadStatus.SuccessDownload
         app.chat_download_config[123].finish_task += 1
         # download success
-        app.chat_download_config[123].node.download_status[
-            10
-        ] = DownloadStatus.SuccessDownload
+        app.chat_download_config[123].node.download_status[10] = DownloadStatus.SuccessDownload
         app.chat_download_config[123].finish_task += 1
         # not exist message
-        app.chat_download_config[123].node.download_status[
-            13
-        ] = DownloadStatus.SuccessDownload
+        app.chat_download_config[123].node.download_status[13] = DownloadStatus.SuccessDownload
         app.config["chat"] = [{"chat_id": 123, "last_read_message_id": 5}]
 
         app.update_config(False)
@@ -61,7 +52,7 @@ class AppTestCase(unittest.TestCase):
         )
 
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
-    @mock.patch("module.app.yaml", autospec=True)
+    @mock.patch("module.app._yaml")
     def test_update_config(self, mock_yaml, mock_open):
         app = Application("", "")
         app.config_file = "config_test.yaml"

@@ -1,7 +1,6 @@
 """Pyrogram ext"""
 
 import asyncio
-import html
 import os
 import secrets
 import struct
@@ -15,9 +14,8 @@ from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import pyrogram
 from loguru import logger
-from pyrogram import enums, parser, types, utils
+from pyrogram import enums, types
 from pyrogram.client import Cache
-from pyrogram.enums import MessageEntityType
 from pyrogram.file_id import (
     FILE_REFERENCE_FLAG,
     PHOTO_TYPES,
@@ -211,9 +209,7 @@ async def send_message_by_language(
     """Record download status"""
     msg = language_str[language.value - 1]
 
-    return await client.send_message(
-        chat_id, msg, reply_to_message_id=reply_to_message_id
-    )
+    return await client.send_message(chat_id, msg, reply_to_message_id=reply_to_message_id)
 
 
 async def download_thumbnail(
@@ -250,9 +246,7 @@ async def download_thumbnail(
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
-                thumbnail_file = await client.download_media(
-                    thumbnail, file_name=unique_name
-                )
+                thumbnail_file = await client.download_media(thumbnail, file_name=unique_name)
 
                 if os.path.getsize(thumbnail_file) == thumbnail.file_size:
                     break
@@ -265,14 +259,11 @@ async def download_thumbnail(
             except Exception as e:
                 if attempt == max_attempts:
                     logger.exception(
-                        f"Failed to download thumbnail after {max_attempts}"
-                        f" attempts: {e}"
+                        f"Failed to download thumbnail after {max_attempts} attempts: {e}"
                     )
                 else:
                     message = await fetch_message(client, message)
-                    logger.warning(
-                        f"Attempt {attempt} to download thumbnail failed: {e}"
-                    )
+                    logger.warning(f"Attempt {attempt} to download thumbnail failed: {e}")
                     # Wait 2 seconds before retrying
                     await asyncio.sleep(2)
 
@@ -347,9 +338,7 @@ async def upload_telegram_chat_message(
             break
         except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:
             await asyncio.sleep(wait_err.value * 2)
-            logger.warning(
-                "Upload Message[{}]: FlowWait {}", message.id, wait_err.value
-            )
+            logger.warning("Upload Message[{}]: FlowWait {}", message.id, wait_err.value)
         except Exception as e:
             logger.exception(f"Upload file {file_name} error: {e}")
             return ForwardStatus.FailedForward
@@ -382,11 +371,7 @@ async def _upload_signal_message(
     """
     ui_file_name = file_name
     if file_name:
-        ui_file_name = (
-            f"****{os.path.splitext(file_name)[-1]}"
-            if app.hide_file_name
-            else file_name
-        )
+        ui_file_name = f"****{os.path.splitext(file_name)[-1]}" if app.hide_file_name else file_name
 
     if message.video:
         # Download thumbnail
@@ -625,9 +610,7 @@ async def process_caption(
     available_length = max_caption_length - ad_length
 
     try:
-        new_caption, new_entities = await convect_caption_entities(
-            client, update_caption
-        )
+        new_caption, new_entities = await convect_caption_entities(client, update_caption)
     except Exception as e:
         logger.exception(f"Error parsing caption: {e}")
         new_caption = update_caption
@@ -643,9 +626,7 @@ async def process_caption(
     try:
         if truncated_entities:
             truncated_entities = convert_entities(truncated_entities)
-            return pyrogram.parser.Parser.unparse(
-                truncated_caption, truncated_entities, True
-            )
+            return pyrogram.parser.Parser.unparse(truncated_caption, truncated_entities, True)
     except Exception as e:
         logger.exception(f"Error unparsing caption: {e}")
         return truncated_caption
@@ -653,7 +634,9 @@ async def process_caption(
     return truncated_caption
 
 
-def convert_message_entity(client, entity: "pyrogram.raw.base.MessageEntity") -> Optional["pyrogram.types.MessageEntity"]:
+def convert_message_entity(
+    client, entity: "pyrogram.raw.base.MessageEntity"
+) -> Optional["pyrogram.types.MessageEntity"]:
     # Special case for InputMessageEntityMentionName -> MessageEntityType.TEXT_MENTION
     # This happens in case of UpdateShortSentMessage inside send_message() where entities are parsed from the input
     if isinstance(entity, pyrogram.raw.types.InputMessageEntityMentionName):
@@ -672,8 +655,9 @@ def convert_message_entity(client, entity: "pyrogram.raw.base.MessageEntity") ->
         language=getattr(entity, "language", None),
         custom_emoji_id=getattr(entity, "document_id", None),
         expandable=getattr(entity, "collapsed", None),
-        client=client
+        client=client,
     )
+
 
 def convert_entities(
     entities: List[pyrogram.raw.base.MessageEntity],
@@ -683,9 +667,7 @@ def convert_entities(
         return []
 
     try:
-        return [
-            convert_message_entity(None, entity) for entity in entities
-        ]
+        return [convert_message_entity(None, entity) for entity in entities]
     except Exception as e:
         logger.warning(f"Failed to convert entities: {e}")
         return []
@@ -742,9 +724,7 @@ async def _upload_telegram_chat_message(
 
     if message.caption and message.media_group_id:
         app.set_caption_name(node.chat_id, message.media_group_id, message.caption)
-        app.set_caption_entities(
-            node.chat_id, message.media_group_id, message.caption_entities
-        )
+        app.set_caption_entities(node.chat_id, message.media_group_id, message.caption_entities)
 
     if not message.media_group_id:
         if not node.has_protected_content:
@@ -805,9 +785,7 @@ async def _upload_telegram_chat_message(
             )
         return ForwardStatus.SuccessForward
 
-    return await forward_multi_media(
-        client, upload_user, app, node, message, caption, file_name
-    )
+    return await forward_multi_media(client, upload_user, app, node, message, caption, file_name)
 
 
 # pylint: disable=R0912
@@ -821,9 +799,7 @@ async def forward_multi_media(
     file_name: Optional[str] = None,
 ):
     """Forward multi media by cache"""
-    media_obj = get_media_obj(
-        message, file_name, caption
-    )  # , parse_mode=enums.ParseMode.HTML)
+    media_obj = get_media_obj(message, file_name, caption)  # , parse_mode=enums.ParseMode.HTML)
     if not node.has_protected_content:
         media = getattr(message, message.media.value)
         if not media:
@@ -836,9 +812,7 @@ async def forward_multi_media(
             node.media_group_ids[message.media_group_id] = {}
 
         if not node.media_group_ids[message.media_group_id]:
-            media_group = await get_media_group_with_retry(
-                client, node.chat_id, message.id, 5
-            )
+            media_group = await get_media_group_with_retry(client, node.chat_id, message.id, 5)
             if not media_group:
                 logger.error("Get Media Group Error! message id: {}", message.id)
                 return ForwardStatus.FailedForward
@@ -857,9 +831,7 @@ async def forward_multi_media(
             ui_file_name = file_name
             if file_name:
                 ui_file_name = (
-                    f"****{os.path.splitext(file_name)[-1]}"
-                    if app.hide_file_name
-                    else file_name
+                    f"****{os.path.splitext(file_name)[-1]}" if app.hide_file_name else file_name
                 )
                 media_obj.thumb = (
                     await download_thumbnail(client, app.temp_save_path, message)
@@ -927,10 +899,7 @@ async def proc_cache_forward(
 
             # Return if any media is still downloading or uploading
             if (
-                (
-                    check_download_status
-                    and download_status == DownloadStatus.Downloading
-                )
+                (check_download_status and download_status == DownloadStatus.Downloading)
                 or upload_status == UploadStatus.Uploading
                 or upload_status == UploadStatus.SkipUpload
             ):
@@ -958,13 +927,13 @@ async def proc_cache_forward(
 
     reply_to_message_id = None
     message_thread_id = node.topic_id
-    business_connection_id = None
+    _business_connection_id = None
     upload_telegram_chat_id = node.upload_telegram_chat_id
     if node.reply_to_message:
         if node.reply_to_message.chat.type != pyrogram.enums.ChatType.PRIVATE:
             reply_to_message_id = node.reply_to_message.id
         message_thread_id = node.reply_to_message.message_thread_id
-        business_connection_id = node.reply_to_message.business_connection_id
+        _business_connection_id = node.reply_to_message.business_connection_id
         upload_telegram_chat_id = node.reply_to_message.chat.id
     if not await send_media_group_v2(
         client,
@@ -1092,8 +1061,7 @@ async def _report_bot_status(
 
         if node.upload_success_count:
             upload_msg_detail_str = (
-                f"\n☁️ {_t('Upload')}\n"
-                f"└─ ✅ {_t('Success')}: {node.upload_success_count}\n"
+                f"\n☁️ {_t('Upload')}\n└─ ✅ {_t('Success')}: {node.upload_success_count}\n"
             )
 
         for idx, value in node.cloud_drive_upload_stat_dict.items():
@@ -1107,7 +1075,7 @@ async def _report_bot_status(
                 f" │   ├─ 📏 : {value.total}\n"
                 f" │   ├─ ⏫ : {value.speed}\n"
                 f" │   └─ 📊 : ["
-                f'{create_progress_bar(int(value.percentage.split("%")[0]))}]'
+                f"{create_progress_bar(int(value.percentage.split('%')[0]))}]"
                 f" ({value.percentage})%\n"
             )
 
@@ -1120,9 +1088,7 @@ async def _report_bot_status(
                 if task_id != node.task_id or value["down_byte"] == value["total_size"]:
                     continue
 
-                temp_file_name = truncate_filename(
-                    os.path.basename(value["file_name"]), 10
-                )
+                temp_file_name = truncate_filename(os.path.basename(value["file_name"]), 10)
                 progress = int(value["down_byte"] / value["total_size"] * 100)
                 download_result_str += (
                     f" ├─ 🆔 {_t('Message ID')}: {idx}\n"
@@ -1134,9 +1100,7 @@ async def _report_bot_status(
                 )
 
             if download_result_str:
-                download_result_str = (
-                    f"\n📥 {_t('Download Progresses')}:\n" + download_result_str
-                )
+                download_result_str = f"\n📥 {_t('Download Progresses')}:\n" + download_result_str
 
         upload_result_str = ""
         for idx, value in node.upload_stat_dict.items():
@@ -1181,18 +1145,12 @@ async def _report_bot_status(
             )
 
 
-def set_max_concurrent_transmissions(
-    client: pyrogram.Client, max_concurrent_transmissions: int
-):
+def set_max_concurrent_transmissions(client: pyrogram.Client, max_concurrent_transmissions: int):
     """Set maximum concurrent transmissions"""
     if getattr(client, "max_concurrent_transmissions", None):
         client.max_concurrent_transmissions = max_concurrent_transmissions
-        client.save_file_semaphore = asyncio.Semaphore(
-            client.max_concurrent_transmissions
-        )
-        client.get_file_semaphore = asyncio.Semaphore(
-            client.max_concurrent_transmissions
-        )
+        client.save_file_semaphore = asyncio.Semaphore(client.max_concurrent_transmissions)
+        client.get_file_semaphore = asyncio.Semaphore(client.max_concurrent_transmissions)
 
 
 async def fetch_message(client: pyrogram.Client, message: pyrogram.types.Message):
@@ -1279,9 +1237,7 @@ async def check_user_permission(
     """
     try:
         member = await client.get_chat_member(chat_id, user_id)
-        return member and (
-            not member.permissions or member.permissions.can_send_media_messages
-        )
+        return member and (not member.permissions or member.permissions.can_send_media_messages)
     except Exception:
         # logger.exception(e)
         pass
@@ -1289,9 +1245,7 @@ async def check_user_permission(
     return False
 
 
-def set_meta_data(
-    meta_data: MetaData, message: pyrogram.types.Message, caption: str = None
-):
+def set_meta_data(meta_data: MetaData, message: pyrogram.types.Message, caption: str = None):
     """Get all meta data"""
     # message
     meta_data.message_date = getattr(message, "date", None)
@@ -1301,12 +1255,10 @@ def set_meta_data(
         meta_data.message_caption = getattr(message, "caption", None) or ""
     meta_data.message_id = getattr(message, "id", None)
 
-    from_user = getattr(message, "from_user")
+    from_user = message.from_user
     meta_data.sender_id = from_user.id if from_user else 0
     meta_data.sender_name = (from_user.username if from_user else "") or ""
-    meta_data.reply_to_message_id = getattr(
-        message, "reply_to_message_id", 1
-    )  # 1 for General
+    meta_data.reply_to_message_id = getattr(message, "reply_to_message_id", 1)  # 1 for General
 
     meta_data.message_thread_id = getattr(message, "message_thread_id", 1)
     # media
@@ -1500,9 +1452,7 @@ class HookClient(pyrogram.Client):
 
             if not await self.storage.is_bot() and self.takeout:
                 self.takeout_id = (
-                    await self.invoke(
-                        pyrogram.raw.functions.account.InitTakeoutSession()
-                    )
+                    await self.invoke(pyrogram.raw.functions.account.InitTakeoutSession())
                 ).id
                 logger.warning(f"Takeout session {self.takeout_id} initiated")
 

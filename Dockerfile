@@ -5,13 +5,12 @@ WORKDIR /app
 # Build deps for pip packages that need compilation
 RUN apk add --no-cache --virtual .build-deps gcc musl-dev
 
-# Install python deps
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir \
-    --trusted-host pypi.org \
-    --trusted-host files.pythonhosted.org \
-    --trusted-host pypi.python.org \
-    -r requirements.txt
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install python deps from pyproject.toml
+COPY pyproject.toml ./
+RUN uv sync --no-dev --frozen 2>/dev/null || uv sync --no-dev
 
 # Install rclone (runtime binary)
 RUN apk add --no-cache rclone
@@ -21,13 +20,16 @@ FROM python:3.11.9-alpine AS runtime
 
 WORKDIR /app
 
-# Copy installed deps from build stage
-COPY --from=build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+# Copy virtual env from build stage
+COPY --from=build /app/.venv /app/.venv
 
-# Copy rclone to the path expected by the app (matches code default: ./rclone/rclone)
+# Copy rclone to the path expected by the app
 COPY --from=build /usr/bin/rclone /app/rclone/rclone
 
 # Copy app source code
 COPY . /app
 
-CMD ["python", "media_downloader.py"]
+# Pre-generate filter cache
+RUN /app/.venv/bin/python gen_filter_cache.py
+
+CMD ["/app/.venv/bin/python", "media_downloader.py"]

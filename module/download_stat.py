@@ -1,4 +1,5 @@
 """Download Stat"""
+
 import asyncio
 import time
 from enum import Enum
@@ -95,9 +96,9 @@ async def update_download_status(
         _download_result[chat_id][message_id]["down_byte"] = down_byte
         _download_result[chat_id][message_id]["end_time"] = end_time
         _download_result[chat_id][message_id]["download_speed"] = download_speed
-        _download_result[chat_id][message_id][
-            "each_second_total_download"
-        ] = each_second_total_download
+        _download_result[chat_id][message_id]["each_second_total_download"] = (
+            each_second_total_download
+        )
     else:
         each_second_total_download = down_byte
         _download_result[chat_id][message_id] = {
@@ -114,9 +115,7 @@ async def update_download_status(
 
     if cur_time - _last_download_time >= 1.0:
         # update speed
-        _total_download_speed = int(
-            _total_download_size / (cur_time - _last_download_time)
-        )
+        _total_download_speed = int(_total_download_size / (cur_time - _last_download_time))
         _total_download_speed = max(_total_download_speed, 0)
         _total_download_size = 0
         _last_download_time = cur_time

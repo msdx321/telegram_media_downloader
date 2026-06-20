@@ -1,4 +1,5 @@
 """Unittest module for media downloader."""
+
 import os
 import sys
 import unittest
@@ -185,9 +186,8 @@ class TestTruncateFilename(unittest.TestCase):
     @unittest.skipIf(sys.platform.startswith("win"), "requires Unix-based system")
     def test_linux_filename_too_long(self):
         long_filename = "a" * 265 + ".txt"
-        with self.assertRaises(OSError):
-            with open(long_filename, "w") as f:
-                f.write("test")
+        with self.assertRaises(OSError), open(long_filename, "w") as f:
+            f.write("test")
 
         long_filename = "a" * 265 + ".txt"
         long_filename = truncate_filename(long_filename) + ".temp"
@@ -201,9 +201,8 @@ class TestTruncateFilename(unittest.TestCase):
     @unittest.skipIf(not sys.platform.startswith("win"), "requires Windows system")
     def test_windows_filename_too_long(self):
         long_filename = "a" * 265 + ".txt"
-        with self.assertRaises(OSError):
-            with open(long_filename, "w") as f:
-                f.write("test")
+        with self.assertRaises(OSError), open(long_filename, "w") as f:
+            f.write("test")
 
         long_filename = "a" * 265 + ".txt"
         long_filename = truncate_filename(long_filename) + ".temp"

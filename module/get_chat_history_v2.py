@@ -17,10 +17,12 @@ async def get_chunk_v2(
     offset: int = 0,
     max_id: int = 0,
     from_message_id: int = 0,
-    from_date: datetime = utils.zero_datetime(),
-    reverse: bool = False
+    from_date: datetime | None = None,
+    reverse: bool = False,
 ):
     """get chunk"""
+    if from_date is None:
+        from_date = utils.zero_datetime()
     from_message_id = from_message_id or (1 if reverse else 0)
 
     messages = await utils.parse_messages(
@@ -55,10 +57,12 @@ async def get_chat_history_v2(
     max_id: int = 0,
     offset: int = 0,
     offset_id: int = 0,
-    offset_date: datetime = utils.zero_datetime(),
+    offset_date: datetime | None = None,
     reverse: bool = False,
 ) -> Optional[AsyncGenerator["types.Message", None]]:
     """Get messages from a chat history."""
+    if offset_date is None:
+        offset_date = utils.zero_datetime()
     current = 0
     total = limit or (1 << 31) - 1
     limit = min(100, total)

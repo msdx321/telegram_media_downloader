@@ -1,9 +1,8 @@
 """Unittest module for update checker."""
+
 import json
 import sys
 import unittest
-
-import mock
 
 sys.path.append("..")  # Adds higher directory to python modules path.
 from utils.updates import check_for_updates, get_latest_release
@@ -40,11 +39,9 @@ def new_request_get(*args, **kwargs):
     return MocResponse('{"tag_name":"v0.0.0"}')
 
 
-import unittest
 from unittest.mock import MagicMock, patch
 
 from utils import __version__
-from utils.updates import check_for_updates, get_latest_release
 
 
 class TestUpdates(unittest.TestCase):

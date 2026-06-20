@@ -1,4 +1,5 @@
 """provide upload cloud drive"""
+
 import asyncio
 import functools
 import importlib
@@ -138,9 +139,7 @@ class CloudDrive:
                             os.remove(zip_file_path)
                         upload_status = True
                     else:
-                        pattern = (
-                            r"Transferred: (.*?) / (.*?), (.*?)%, (.*?/s)?, ETA (.*?)$"
-                        )
+                        pattern = r"Transferred: (.*?) / (.*?), (.*?)%, (.*?/s)?, ETA (.*?)$"
                         transferred_match = re.search(pattern, s)
 
                         if transferred_match:
@@ -166,9 +165,7 @@ class CloudDrive:
         return upload_status
 
     @staticmethod
-    def aligo_upload_file(
-        drive_config: CloudDriveConfig, save_path: str, local_file_path: str
-    ):
+    def aligo_upload_file(drive_config: CloudDriveConfig, save_path: str, local_file_path: str):
         """aliyun upload file"""
         upload_status: bool = False
         if not drive_config.aligo:
@@ -245,9 +242,7 @@ class CloudDrive:
 
         ret: bool = False
         if drive_config.upload_adapter == "rclone":
-            ret = await CloudDrive.rclone_upload_file(
-                drive_config, save_path, local_file_path
-            )
+            ret = await CloudDrive.rclone_upload_file(drive_config, save_path, local_file_path)
         elif drive_config.upload_adapter == "aligo":
             ret = CloudDrive.aligo_upload_file(drive_config, save_path, local_file_path)
 
