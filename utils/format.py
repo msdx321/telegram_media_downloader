@@ -6,7 +6,6 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Union
 from urllib.parse import parse_qs, urlparse
 
 
@@ -14,10 +13,10 @@ from urllib.parse import parse_qs, urlparse
 class Link:
     """Telegram Link"""
 
-    group_id: Union[str, int, None] = None
-    post_id: Optional[int] = None
-    comment_id: Optional[int] = None
-    topic_id: Optional[int] = None
+    group_id: str | int | None = None
+    post_id: int | None = None
+    comment_id: int | None = None
+    topic_id: int | None = None
 
 
 def format_byte(size: float, dot=2):
@@ -165,7 +164,7 @@ def replace_date_time(text: str, fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
 _BYTE_UNIT = ["B", "KB", "MB", "GB", "TB"]
 
 
-def get_byte_from_str(byte_str: str) -> Optional[int]:
+def get_byte_from_str(byte_str: str) -> int | None:
     """Get byte from str
 
     Parameters

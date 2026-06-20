@@ -4,7 +4,7 @@ dynamic = ["version"]
 description = "A simple script to download media from telegram"
 authors = [{ name = "tangyoha", email = "tangyoha@outlook.com" }]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "pyrogram @ https://github.com/tangyoha/pyrogram/archive/refs/heads/patch.zip",
@@ -41,7 +41,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py311"
 
 [tool.ruff.format]
 quote-style = "double"

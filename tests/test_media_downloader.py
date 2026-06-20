@@ -3,10 +3,8 @@
 import asyncio
 import os
 import queue
-import sys
 import unittest
 from datetime import datetime
-from typing import List
 from unittest import mock
 
 import pyrogram
@@ -54,9 +52,7 @@ MOCK_CONF = {
     "file_name_prefix": ["message_id", "caption", "file_name"],
 }
 
-event_str = "asyncio.AbstractEventLoop.run_forever"
-if sys.version_info > (3, 8):
-    event_str = "asyncio.ProactorEventLoop.run_forever"
+event_str = "asyncio.ProactorEventLoop.run_forever"
 
 
 def os_remove(_: str):
@@ -96,14 +92,14 @@ def rest_app(conf: dict):
     app.save_path = os.path.abspath(".")
     app.api_id: str = ""
     app.api_hash: str = ""
-    app.media_types: List[str] = []
+    app.media_types: list[str] = []
     app.file_formats: dict = {}
     app.proxy: dict = {}
     app.restart_program = False
     app.config: dict = {}
     app.app_data: dict = {}
-    app.file_path_prefix: List[str] = ["chat_title", "media_datetime"]
-    app.file_name_prefix: List[str] = ["message_id", "file_name"]
+    app.file_path_prefix: list[str] = ["chat_title", "media_datetime"]
+    app.file_name_prefix: list[str] = ["message_id", "file_name"]
     app.file_name_prefix_split: str = " - "
     app.log_file_path = os.path.join(os.path.abspath("."), "log")
     app.cloud_drive_config = CloudDriveConfig()

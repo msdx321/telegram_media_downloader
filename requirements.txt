@@ -5,9 +5,7 @@ certifi==2026.6.17
     # via requests
 charset-normalizer==3.4.7
     # via requests
-click==8.1.8 ; python_full_version < '3.10'
-    # via flask
-click==8.4.1 ; python_full_version >= '3.10'
+click==8.4.1
     # via flask
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
@@ -21,25 +19,15 @@ flask==2.2.2
     #   telegram-media-downloader
 flask-login==0.6.2
     # via telegram-media-downloader
-idna==3.15 ; python_full_version < '3.9'
+idna==3.18
     # via requests
-idna==3.18 ; python_full_version >= '3.9'
-    # via requests
-importlib-metadata==8.5.0 ; python_full_version < '3.9'
-    # via flask
-importlib-metadata==8.7.1 ; python_full_version == '3.9.*'
-    # via flask
 itsdangerous==2.2.0
     # via flask
 jinja2==3.1.6
     # via flask
 loguru==0.6.0
     # via telegram-media-downloader
-markupsafe==2.1.5 ; python_full_version < '3.9'
-    # via
-    #   jinja2
-    #   werkzeug
-markupsafe==3.0.3 ; python_full_version >= '3.9'
+markupsafe==3.0.3
     # via
     #   jinja2
     #   werkzeug
@@ -49,9 +37,7 @@ pyaes==1.6.1
     # via pyrogram
 pycryptodome==3.18.0
     # via telegram-media-downloader
-pygments==2.19.2 ; python_full_version < '3.9'
-    # via rich
-pygments==2.20.0 ; python_full_version >= '3.9'
+pygments==2.20.0
     # via rich
 pyrogram @ https://github.com/tangyoha/pyrogram/archive/refs/heads/patch.zip
     # via telegram-media-downloader
@@ -67,17 +53,7 @@ rich==12.5.1
     # via telegram-media-downloader
 ruamel-yaml==0.17.21
     # via telegram-media-downloader
-ruamel-yaml-clib==0.2.8 ; python_full_version < '3.9' and platform_python_implementation == 'CPython'
-    # via ruamel-yaml
-ruamel-yaml-clib==0.2.15 ; python_full_version >= '3.9' and python_full_version < '3.11' and platform_python_implementation == 'CPython'
-    # via ruamel-yaml
-typing-extensions==4.13.2 ; python_full_version < '3.9'
-    # via rich
-urllib3==2.2.3 ; python_full_version < '3.9'
-    # via requests
-urllib3==2.6.3 ; python_full_version == '3.9.*'
-    # via requests
-urllib3==2.7.0 ; python_full_version >= '3.10'
+urllib3==2.7.0
     # via requests
 werkzeug==2.2.2
     # via
@@ -86,7 +62,3 @@ werkzeug==2.2.2
     #   telegram-media-downloader
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru
-zipp==3.20.2 ; python_full_version < '3.9'
-    # via importlib-metadata
-zipp==3.23.1 ; python_full_version == '3.9.*'
-    # via importlib-metadata

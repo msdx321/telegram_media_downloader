@@ -5,7 +5,6 @@ import logging
 import os
 import shutil
 import time
-from typing import List, Optional, Tuple, Union
 
 import pyrogram
 from loguru import logger
@@ -117,7 +116,7 @@ def _check_timeout(retry: int, _: int):
     return False
 
 
-def _can_download(_type: str, file_formats: dict, file_format: Optional[str]) -> bool:
+def _can_download(_type: str, file_formats: dict, file_format: str | None) -> bool:
     """
     Check if the given file format can be downloaded.
 
@@ -165,11 +164,11 @@ def _is_exist(file_path: str) -> bool:
 
 
 async def _get_media_meta(
-    chat_id: Union[int, str],
+    chat_id: int | str,
     message: pyrogram.types.Message,
-    media_obj: Union[Audio, Document, Photo, Video, VideoNote, Voice],
+    media_obj: Audio | Document | Photo | Video | VideoNote | Voice,
     _type: str,
-) -> Tuple[str, str, Optional[str]]:
+) -> tuple[str, str, str | None]:
     """Extract file name and file id from media object.
 
     Parameters
@@ -186,7 +185,7 @@ async def _get_media_meta(
     """
     if _type in ["audio", "document", "video"]:
         # pylint: disable = C0301
-        file_format: Optional[str] = media_obj.mime_type.split("/")[-1]  # type: ignore
+        file_format: str | None = media_obj.mime_type.split("/")[-1]  # type: ignore
     else:
         file_format = None
 
@@ -264,7 +263,7 @@ async def add_download_task(
     return True
 
 
-async def save_msg_to_file(app, chat_id: Union[int, str], message: pyrogram.types.Message):
+async def save_msg_to_file(app, chat_id: int | str, message: pyrogram.types.Message):
     """Write message text into file"""
     dirname = validate_title(
         message.chat.title if message.chat and message.chat.title else str(chat_id)
@@ -341,7 +340,7 @@ async def download_task(client: pyrogram.Client, message: pyrogram.types.Message
 async def download_media(
     client: pyrogram.client.Client,
     message: pyrogram.types.Message,
-    media_types: List[str],
+    media_types: list[str],
     file_formats: dict,
     node: TaskNode,
 ):

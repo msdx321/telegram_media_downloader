@@ -2,8 +2,8 @@
 
 import asyncio
 import os
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, List, Union
 
 import pyrogram
 from loguru import logger
@@ -61,13 +61,13 @@ class DownloadBot:
         self.bot_info = None
         self.task_node: dict = {}
         self.is_running = True
-        self.allowed_user_ids: List[Union[int, str]] = []
+        self.allowed_user_ids: list[int | str] = []
         self.monitor_task = None
 
         meta = MetaData(datetime(2022, 8, 5, 14, 35, 12), 0, "", 0, 0, 0, "", 0)
         self.filter.set_meta_data(meta)
 
-        self.download_filter: List[str] = []
+        self.download_filter: list[str] = []
         self.task_id: int = 0
         self.reply_task = None
 
@@ -762,7 +762,7 @@ async def remove_replace_advertisement_filter(
 
 async def direct_download(
     download_bot: DownloadBot,
-    chat_id: Union[str, int],
+    chat_id: str | int,
     message: pyrogram.types.Message,
     download_message: pyrogram.types.Message,
     client: pyrogram.Client = None,
@@ -1334,8 +1334,8 @@ async def stop_task(
 ):
     """Stop task"""
     if query.data == queryHandler:
-        buttons: List[InlineKeyboardButton] = []
-        temp_buttons: List[InlineKeyboardButton] = []
+        buttons: list[InlineKeyboardButton] = []
+        temp_buttons: list[InlineKeyboardButton] = []
         for key, value in _bot.task_node.copy().items():
             if not value.is_finish() and value.task_type is task_type:
                 if len(temp_buttons) == 3:

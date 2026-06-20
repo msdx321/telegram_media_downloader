@@ -5,12 +5,13 @@ import os
 import secrets
 import struct
 import time
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from datetime import datetime
 from functools import wraps
 from io import BytesIO, StringIO
 from mimetypes import MimeTypes
-from typing import Callable, Iterable, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import pyrogram
 from loguru import logger
@@ -56,12 +57,12 @@ def reset_download_cache():
     _download_cache.store.clear()
 
 
-def _guess_mime_type(filename: str) -> Optional[str]:
+def _guess_mime_type(filename: str) -> str | None:
     """Guess mime type"""
     return _mimetypes.guess_type(filename)[0]
 
 
-def _guess_extension(mime_type: str) -> Optional[str]:
+def _guess_extension(mime_type: str) -> str | None:
     """Guess extension"""
     return _mimetypes.guess_extension(mime_type)
 
@@ -82,15 +83,9 @@ def get_media_obj(
     message: pyrogram.types.Message,
     media: str = None,
     caption: str = None,
-    caption_entities: List[pyrogram.types.MessageEntity] = None,
-    parse_mode: Optional[enums.ParseMode] = None,
-) -> Union[
-    types.InputMediaPhoto,
-    types.InputMediaVideo,
-    types.InputMediaAudio,
-    types.InputMediaDocument,
-    types.InputMediaAnimation,
-]:
+    caption_entities: list[pyrogram.types.MessageEntity] = None,
+    parse_mode: enums.ParseMode | None = None,
+) -> types.InputMediaPhoto | types.InputMediaVideo | types.InputMediaAudio | types.InputMediaDocument | types.InputMediaAnimation:
     """Get media object"""
     media_type = message.media
     if media_type == pyrogram.enums.MessageMediaType.PHOTO:
@@ -202,9 +197,9 @@ def get_extension(file_id: str, mime_type: str, dot: bool = True) -> str:
 async def send_message_by_language(
     client: pyrogram.client.Client,
     language: Language,
-    chat_id: Union[int, str],
+    chat_id: int | str,
     reply_to_message_id: int,
-    language_str: List[str],
+    language_str: list[str],
 ):
     """Record download status"""
     msg = language_str[language.value - 1]
@@ -354,11 +349,11 @@ async def _upload_signal_message(
     upload_user: pyrogram.Client,
     app: Application,
     node: TaskNode,
-    upload_telegram_chat_id: Union[int, str, None],
+    upload_telegram_chat_id: int | str | None,
     message: pyrogram.types.Message,
-    file_name: Optional[str],
-    caption: Optional[str] = None,
-    text: Optional[str] = None,
+    file_name: str | None,
+    caption: str | None = None,
+    text: str | None = None,
 ):
     """
     Uploads a video or message to a Telegram chat.
@@ -519,9 +514,9 @@ async def _upload_signal_message(
 
 def truncate_caption(
     text: str,
-    entities: Optional[List[pyrogram.raw.base.MessageEntity]] = None,
+    entities: list[pyrogram.raw.base.MessageEntity] | None = None,
     limit: int = 1024,
-) -> Tuple[str, Optional[List[pyrogram.types.MessageEntity]]]:
+) -> tuple[str, list[pyrogram.types.MessageEntity] | None]:
     """
     Truncate caption to ensure it doesn't exceed Telegram limits
 
@@ -577,7 +572,7 @@ async def process_caption(
     app,
     upload_telegram_chat_id,
     caption: str,
-    caption_entities: Optional[List[pyrogram.types.MessageEntity]],
+    caption_entities: list[pyrogram.types.MessageEntity] | None,
 ):
     """
     Process message caption: Use plain text without formatting for ad filtering and synchronously update caption_entities.
@@ -660,8 +655,8 @@ def convert_message_entity(
 
 
 def convert_entities(
-    entities: List[pyrogram.raw.base.MessageEntity],
-) -> List[pyrogram.types.MessageEntity]:
+    entities: list[pyrogram.raw.base.MessageEntity],
+) -> list[pyrogram.types.MessageEntity]:
     """Convert raw message entities to types message entities"""
     if not entities:
         return []
@@ -795,8 +790,8 @@ async def forward_multi_media(
     app: Application,
     node: TaskNode,
     message: pyrogram.types.Message,
-    caption: Optional[str] = None,
-    file_name: Optional[str] = None,
+    caption: str | None = None,
+    file_name: str | None = None,
 ):
     """Forward multi media by cache"""
     media_obj = get_media_obj(message, file_name, caption)  # , parse_mode=enums.ParseMode.HTML)
@@ -877,7 +872,7 @@ async def proc_cache_forward(
     app: Application,
 ):
     """Process other cache forward"""
-    multi_media: List[pyrogram.raw.types.InputSingleMedia] = []
+    multi_media: list[pyrogram.raw.types.InputSingleMedia] = []
 
     async with node.media_group_ids_lock:
         # Check if the message's media group is valid
@@ -956,7 +951,7 @@ def record_download_status(func):
     async def inner(
         client: pyrogram.client.Client,
         message: pyrogram.types.Message,
-        media_types: List[str],
+        media_types: list[str],
         file_formats: dict,
         node: TaskNode,
     ):
@@ -1200,7 +1195,7 @@ async def retry(func: Callable, args: tuple = (), max_attempts=3, wait_second=15
 
 async def get_media_group_with_retry(
     client: pyrogram.Client,
-    chat_id: Union[int, str],
+    chat_id: int | str,
     message_id: int,
     max_attempts: int = 3,
     wait_second: int = 15,
@@ -1222,7 +1217,7 @@ async def get_media_group_with_retry(
 
 
 async def check_user_permission(
-    client: pyrogram.Client, user_id: Union[int, str], chat_id: Union[int, str]
+    client: pyrogram.Client, user_id: int | str, chat_id: int | str
 ) -> bool:
     """
     Check if the user has permission to send videos in the group.
@@ -1470,17 +1465,17 @@ class HookClient(pyrogram.Client):
 # pylint: disable=R0914,R0913
 async def forward_messages(
     client: pyrogram.Client,
-    chat_id: Union[int, str, None],
-    from_chat_id: Union[int, str],
-    message_ids: Union[int, Iterable[int]],
+    chat_id: int | str | None,
+    from_chat_id: int | str,
+    message_ids: int | Iterable[int],
     disable_notification: bool = None,
     schedule_date: datetime = None,
     protect_content: bool = None,
     drop_author: bool = None,
     topic_id: int = None,
     caption: str = None,
-    caption_entities: List[pyrogram.types.MessageEntity] = None,
-) -> Union["types.Message", List["types.Message"]]:
+    caption_entities: list[pyrogram.types.MessageEntity] = None,
+) -> Union["types.Message", list["types.Message"]]:
     """Forward messages of any kind."""
 
     is_iterable = not isinstance(message_ids, int)

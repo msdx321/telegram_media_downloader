@@ -4,11 +4,11 @@ import asyncio
 import os
 import time
 from asyncio import Lock
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Callable, List, Optional, Union
 
 from loguru import logger
 from ruamel import yaml
@@ -121,11 +121,11 @@ class TaskNode:
     # pylint: disable = R0913
     def __init__(
         self,
-        chat_id: Union[int, str],
-        from_user_id: Union[int, str] = None,
+        chat_id: int | str,
+        from_user_id: int | str = None,
         reply_message_id: int = 0,
         replay_message: str = None,
-        upload_telegram_chat_id: Union[int, str] = None,
+        upload_telegram_chat_id: int | str = None,
         has_protected_content: bool = False,
         download_filter: str = None,
         limit: int = 0,
@@ -306,7 +306,7 @@ class ChatDownloadConfig:
         self.total_task: int = 0
         self.finish_task: int = 0
         self.need_check: bool = False
-        self.upload_telegram_chat_id: Union[int, str] = None
+        self.upload_telegram_chat_id: int | str = None
         self.node: TaskNode = TaskNode(0)
 
 
@@ -379,14 +379,14 @@ class Application:
         self.api_hash: str = ""
         self.bot_token: str = ""
         self._chat_id: str = ""
-        self.media_types: List[str] = []
+        self.media_types: list[str] = []
         self.file_formats: dict = {}
         self.proxy: dict = {}
         self.restart_program = False
         self.config: dict = {}
         self.app_data: dict = {}
-        self.file_path_prefix: List[str] = ["chat_title", "media_datetime"]
-        self.file_name_prefix: List[str] = ["message_id", "file_name"]
+        self.file_path_prefix: list[str] = ["chat_title", "media_datetime"]
+        self.file_name_prefix: list[str] = ["message_id", "file_name"]
         self.file_name_prefix_split: str = " - "
         self.log_file_path = os.path.join(os.path.abspath("."), "log")
         self.session_file_path = os.path.join(os.path.abspath("."), "sessions")
@@ -714,7 +714,7 @@ class Application:
         return res
 
     def get_file_name(
-        self, message_id: int, file_name: Optional[str], caption: Optional[str]
+        self, message_id: int, file_name: str | None, caption: str | None
     ) -> str:
         """Get file save path prefix.
 
@@ -910,7 +910,7 @@ class Application:
         return False
 
     def set_caption_name(
-        self, chat_id: Union[int, str], media_group_id: Optional[str], caption: str
+        self, chat_id: int | str, media_group_id: str | None, caption: str
     ):
         """set caption name map
 
@@ -934,8 +934,8 @@ class Application:
             self.caption_name_dict[chat_id] = {media_group_id: caption}
 
     def get_caption_name(
-        self, chat_id: Union[int, str], media_group_id: Optional[str]
-    ) -> Optional[str]:
+        self, chat_id: int | str, media_group_id: str | None
+    ) -> str | None:
         """set caption name map
                 media_group_id: Optional[str]
             The unique identifier of a media message group this message belongs to.
@@ -954,7 +954,7 @@ class Application:
         return str(self.caption_name_dict[chat_id][media_group_id])
 
     def set_caption_entities(
-        self, chat_id: Union[int, str], media_group_id: Optional[str], caption_entities
+        self, chat_id: int | str, media_group_id: str | None, caption_entities
     ):
         """
         set caption entities map
@@ -967,7 +967,7 @@ class Application:
         else:
             self.caption_entities_dict[chat_id] = {media_group_id: caption_entities}
 
-    def get_caption_entities(self, chat_id: Union[int, str], media_group_id: Optional[str]):
+    def get_caption_entities(self, chat_id: int | str, media_group_id: str | None):
         """
         get caption entities map
         """

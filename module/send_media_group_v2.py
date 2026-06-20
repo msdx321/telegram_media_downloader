@@ -3,8 +3,9 @@
 import logging
 import os
 import re
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable, List, Optional, Union
+from typing import Optional, Union
 
 import pyrogram
 from pyrogram import raw, types, utils
@@ -16,7 +17,7 @@ log = logging.getLogger(__name__)
 # pylint: disable = R0915, R0902, R0912
 async def cache_media(
     client: pyrogram.Client,
-    chat_id: Union[int, str],
+    chat_id: int | str,
     media_obj: Union[
         "types.InputMediaPhoto",
         "types.InputMediaVideo",
@@ -370,17 +371,17 @@ async def cache_media(
 # pylint: disable = R0913
 async def send_media_group_v2(
     client: pyrogram.Client,
-    chat_id: Union[int, str],
-    multi_media: List[raw.types.InputSingleMedia],
+    chat_id: int | str,
+    multi_media: list[raw.types.InputSingleMedia],
     disable_notification: bool = None,
     schedule_date: datetime = None,
     quote_text: str = None,
     parse_mode: Optional["pyrogram.enums.ParseMode"] = None,
     message_thread_id: int = None,
     reply_to_message_id: int = None,
-    reply_to_chat_id: Union[int, str] = None,
+    reply_to_chat_id: int | str = None,
     reply_to_story_id: int = None,
-    quote_entities: List["types.MessageEntity"] = None,
+    quote_entities: list["types.MessageEntity"] = None,
     quote_offset: int = None,
     show_above_text: bool = None,
 ):
