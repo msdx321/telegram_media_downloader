@@ -78,7 +78,7 @@ def _check_download_finish(media_size: int, download_path: str, ui_file_name: st
             f"{media_size}, {_t('file name')}: {ui_file_name}"
         )
         os.remove(download_path)
-        raise pyrogram.errors.exceptions.bad_request_400.BadRequest()
+        raise pyrogram.errors.exceptions.bad_request_400.BadRequest()  # ty:ignore[possibly-missing-submodule]
 
 
 def _move_to_download_path(temp_download_path: str, download_path: str):
@@ -207,7 +207,7 @@ async def _get_media_meta(
         file_name = "{} - {}_{}.{}".format(
             message.id,
             _type,
-            media_obj.date.isoformat(),  # type: ignore
+            media_obj.date.isoformat(),
             file_format,
         )
         file_name = validate_title(file_name)
@@ -326,7 +326,7 @@ async def download_task(client: pyrogram.Client, message: pyrogram.types.Message
             node.upload_success_count += 1
 
     await report_bot_download_status(
-        node.bot,
+        node.bot,  # ty:ignore[invalid-argument-type]
         node,
         download_status,
         file_size,
@@ -445,7 +445,7 @@ async def download_media(
                 _move_to_download_path(temp_download_path, file_name)
                 # TODO: if not exist file size or media
                 return DownloadStatus.SuccessDownload, file_name
-        except pyrogram.errors.exceptions.bad_request_400.BadRequest:
+        except pyrogram.errors.exceptions.bad_request_400.BadRequest:  # ty:ignore[possibly-missing-submodule]
             logger.warning(f"Message[{message.id}]: {_t('file reference expired, refetching')}...")
             await asyncio.sleep(RETRY_TIME_OUT)
             message = await fetch_message(client, message)
@@ -455,7 +455,7 @@ async def download_media(
                     f"Message[{message.id}]: "
                     f"{_t('file reference expired for 3 retries, download skipped.')}"
                 )
-        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:
+        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:  # ty:ignore[possibly-missing-submodule]
             await asyncio.sleep(wait_err.value)
             logger.warning("Message[{}]: FlowWait {}", message.id, wait_err.value)
             _check_timeout(retry, message.id)
@@ -572,7 +572,7 @@ async def download_chat_task(
             if message.media_group_id:
                 await upload_telegram_chat(
                     client,
-                    node.upload_user,
+                    node.upload_user,  # ty:ignore[invalid-argument-type]
                     app,
                     node,
                     message,

@@ -404,12 +404,13 @@ class Application:
         self.debug_web: bool = False
         self.log_level: str = "INFO"
         self.start_timeout: int = 60
-        self.allowed_user_ids: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
+        self.allowed_user_ids: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])  # ty:ignore[possibly-missing-submodule]
         self.date_format: str = "%Y_%m"
         self.drop_no_audio_video: bool = False
         self.enable_download_txt: bool = False
-        self.filter_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
-        self.replace_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])
+        self.down: str | None = None  # bot command state
+        self.filter_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])  # ty:ignore[possibly-missing-submodule]
+        self.replace_advertisement_list: yaml.comments.CommentedSeq = yaml.comments.CommentedSeq([])  # ty:ignore[possibly-missing-submodule]
         self.group_add_advertisement: dict = {}
         self.forward_limit_call = LimitCall(max_limit_call_times=33)
 
@@ -520,7 +521,7 @@ class Application:
             _config,
             "allowed_user_ids",
             self.allowed_user_ids,
-            yaml.comments.CommentedSeq,
+            yaml.comments.CommentedSeq,  # ty:ignore[possibly-missing-submodule]
         )
 
         self.date_format = get_config(
@@ -542,14 +543,14 @@ class Application:
             _config,
             "filter_advertisement_list",
             self.filter_advertisement_list,
-            yaml.comments.CommentedSeq,
+            yaml.comments.CommentedSeq,  # ty:ignore[possibly-missing-submodule]
         )
 
         self.replace_advertisement_list = get_config(
             _config,
             "replace_advertisement_list",
             self.replace_advertisement_list,
-            yaml.comments.CommentedSeq,
+            yaml.comments.CommentedSeq,  # ty:ignore[possibly-missing-submodule]
         )
 
         if _config.get("group_add_advertisement"):

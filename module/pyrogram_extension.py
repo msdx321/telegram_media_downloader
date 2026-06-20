@@ -90,17 +90,17 @@ def get_media_obj(
     media_type = message.media
     if media_type == pyrogram.enums.MessageMediaType.PHOTO:
         return types.InputMediaPhoto(
-            media,
-            caption=caption,
-            caption_entities=caption_entities,
+            media,  # ty:ignore[invalid-argument-type]
+            caption=caption,  # ty:ignore[invalid-argument-type]
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
             parse_mode=parse_mode,
         )
 
     if media_type == pyrogram.enums.MessageMediaType.VIDEO:
         return types.InputMediaVideo(
-            media,
-            caption=caption,
-            caption_entities=caption_entities,
+            media,  # ty:ignore[invalid-argument-type]
+            caption=caption,  # ty:ignore[invalid-argument-type]
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
             width=message.video.width,
             height=message.video.height,
             duration=message.video.duration,
@@ -112,25 +112,25 @@ def get_media_obj(
         pyrogram.enums.MessageMediaType.VOICE,
     ]:
         return types.InputMediaAudio(
-            media,
-            caption=caption,
-            caption_entities=caption_entities,
+            media,  # ty:ignore[invalid-argument-type]
+            caption=caption,  # ty:ignore[invalid-argument-type]
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
             parse_mode=parse_mode,
         )
 
     if media_type == pyrogram.enums.MessageMediaType.DOCUMENT:
         return types.InputMediaDocument(
-            media,
-            caption=caption,
-            caption_entities=caption_entities,
+            media,  # ty:ignore[invalid-argument-type]
+            caption=caption,  # ty:ignore[invalid-argument-type]
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
             parse_mode=parse_mode,
         )
 
     if media_type == pyrogram.enums.MessageMediaType.ANIMATION:
         return types.InputMediaAnimation(
-            media,
-            caption=caption,
-            caption_entities=caption_entities,
+            media,  # ty:ignore[invalid-argument-type]
+            caption=caption,  # ty:ignore[invalid-argument-type]
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
             parse_mode=parse_mode,
         )
 
@@ -241,14 +241,14 @@ async def download_thumbnail(
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
-                thumbnail_file = await client.download_media(thumbnail, file_name=unique_name)
+                thumbnail_file = await client.download_media(thumbnail, file_name=unique_name)  # ty:ignore[invalid-argument-type]
 
-                if os.path.getsize(thumbnail_file) == thumbnail.file_size:
+                if os.path.getsize(thumbnail_file) == thumbnail.file_size:  # ty:ignore[invalid-argument-type, unresolved-attribute]
                     break
 
                 raise ValueError(
-                    f"Thumbnail file size is {os.path.getsize(thumbnail_file)}"
-                    f" bytes, actual {thumbnail.file_size}: {thumbnail_file}"
+                    f"Thumbnail file size is {os.path.getsize(thumbnail_file)}"  # ty:ignore[invalid-argument-type]
+                    f" bytes, actual {thumbnail.file_size}: {thumbnail_file}"  # ty:ignore[unresolved-attribute]
                 )
 
             except Exception as e:
@@ -331,7 +331,7 @@ async def upload_telegram_chat_message(
                 client, upload_user, app, node, message, file_name
             )
             break
-        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:
+        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:  # ty:ignore[possibly-missing-submodule]
             await asyncio.sleep(wait_err.value * 2)
             logger.warning("Upload Message[{}]: FlowWait {}", message.id, wait_err.value)
         except Exception as e:
@@ -387,13 +387,13 @@ async def _upload_signal_message(
                 )
             else:
                 await upload_user.send_video(
-                    upload_telegram_chat_id,
-                    file_name,
+                    upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
+                    file_name,  # ty:ignore[invalid-argument-type]
                     thumb=thumbnail_file,
                     width=message.video.width,
                     height=message.video.height,
                     duration=message.video.duration,
-                    caption=caption,
+                    caption=caption,  # ty:ignore[invalid-argument-type]
                     parse_mode=pyrogram.enums.ParseMode.HTML,
                     progress=update_upload_stat,
                     progress_args=(
@@ -420,9 +420,9 @@ async def _upload_signal_message(
             )
         else:
             await upload_user.send_photo(
-                upload_telegram_chat_id,
-                file_name,
-                caption=caption,
+                upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
+                file_name,  # ty:ignore[invalid-argument-type]
+                caption=caption,  # ty:ignore[invalid-argument-type]
                 progress=update_upload_stat,
                 progress_args=(
                     message.id,
@@ -442,9 +442,9 @@ async def _upload_signal_message(
             )
         else:
             await upload_user.send_document(
-                upload_telegram_chat_id,
-                file_name,
-                caption=caption,
+                upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
+                file_name,  # ty:ignore[invalid-argument-type]
+                caption=caption,  # ty:ignore[invalid-argument-type]
                 progress=update_upload_stat,
                 progress_args=(
                     message.id,
@@ -464,9 +464,9 @@ async def _upload_signal_message(
             )
         else:
             await upload_user.send_voice(
-                upload_telegram_chat_id,
-                file_name,
-                caption=caption,
+                upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
+                file_name,  # ty:ignore[invalid-argument-type]
+                caption=caption,  # ty:ignore[invalid-argument-type]
                 progress=update_upload_stat,
                 progress_args=(
                     message.id,
@@ -486,9 +486,9 @@ async def _upload_signal_message(
             )
         else:
             await upload_user.send_video_note(
-                upload_telegram_chat_id,
-                file_name,
-                caption=caption,
+                upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
+                file_name,  # ty:ignore[invalid-argument-type]
+                caption=caption,  # ty:ignore[unknown-argument]
                 progress=update_upload_stat,
                 progress_args=(
                     message.id,
@@ -506,7 +506,7 @@ async def _upload_signal_message(
             )
         else:
             await upload_user.send_message(
-                upload_telegram_chat_id,
+                upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
                 message.text if text is None else text,
                 message_thread_id=node.topic_id,
             )
@@ -529,13 +529,13 @@ def truncate_caption(
         Tuple[str, Optional[List[pyrogram.raw.types.MessageEntity]]]: Truncated text and corresponding entity list
     """
     if not text:
-        return text, entities
+        return text, entities  # ty:ignore[invalid-return-type]
 
     # Calculate UTF-16 length
     utf16_length = get_utf16_length(text)
 
     if utf16_length <= limit:
-        return text, entities
+        return text, entities  # ty:ignore[invalid-return-type]
 
     # If exceeds limit, need to truncate
     # Use binary search to find suitable truncation position
@@ -553,16 +553,16 @@ def truncate_caption(
     if entities:
         truncated_entities = []
         for entity in entities:
-            if entity.offset >= left:
+            if entity.offset >= left:  # ty:ignore[unresolved-attribute]
                 continue
-            if entity.offset + entity.length <= left:
+            if entity.offset + entity.length <= left:  # ty:ignore[unresolved-attribute]
                 truncated_entities.append(entity)
             else:
                 # For entities that cross the truncation point, adjust length
                 new_entity = deepcopy(entity)
-                new_entity.length = left - entity.offset
+                new_entity.length = left - entity.offset  # ty:ignore[unresolved-attribute]
                 truncated_entities.append(new_entity)
-        return truncated_text, truncated_entities
+        return truncated_text, truncated_entities  # ty:ignore[invalid-return-type]
 
     return truncated_text, None
 
@@ -592,7 +592,7 @@ async def process_caption(
 
     update_caption = caption
     if caption and caption_entities:
-        update_caption = pyrogram.parser.Parser.unparse(caption, caption_entities, True)
+        update_caption = pyrogram.parser.Parser.unparse(caption, caption_entities, True)  # ty:ignore[possibly-missing-submodule]
 
     for ad_text in app.replace_advertisement_list:
         update_caption = update_caption.replace(ad_text, "")
@@ -620,8 +620,8 @@ async def process_caption(
 
     try:
         if truncated_entities:
-            truncated_entities = convert_entities(truncated_entities)
-            return pyrogram.parser.Parser.unparse(truncated_caption, truncated_entities, True)
+            truncated_entities = convert_entities(truncated_entities)  # ty:ignore[invalid-argument-type]
+            return pyrogram.parser.Parser.unparse(truncated_caption, truncated_entities, True)  # ty:ignore[possibly-missing-submodule]
     except Exception as e:
         logger.exception(f"Error unparsing caption: {e}")
         return truncated_caption
@@ -636,20 +636,20 @@ def convert_message_entity(
     # This happens in case of UpdateShortSentMessage inside send_message() where entities are parsed from the input
     if isinstance(entity, pyrogram.raw.types.InputMessageEntityMentionName):
         entity_type = enums.MessageEntityType.TEXT_MENTION
-        user_id = entity.user_id.user_id
+        user_id = entity.user_id.user_id  # ty:ignore[unresolved-attribute]
     else:
         entity_type = enums.MessageEntityType(entity.__class__)
         user_id = getattr(entity, "user_id", None)
 
     return pyrogram.types.MessageEntity(
         type=entity_type,
-        offset=entity.offset,
-        length=entity.length,
-        url=getattr(entity, "url", None),
-        user=types.User(id=user_id),
-        language=getattr(entity, "language", None),
-        custom_emoji_id=getattr(entity, "document_id", None),
-        expandable=getattr(entity, "collapsed", None),
+        offset=entity.offset,  # ty:ignore[unresolved-attribute]
+        length=entity.length,  # ty:ignore[unresolved-attribute]
+        url=getattr(entity, "url", None),  # ty:ignore[invalid-argument-type]
+        user=types.User(id=user_id),  # ty:ignore[invalid-argument-type]
+        language=getattr(entity, "language", None),  # ty:ignore[invalid-argument-type]
+        custom_emoji_id=getattr(entity, "document_id", None),  # ty:ignore[invalid-argument-type]
+        expandable=getattr(entity, "collapsed", None),  # ty:ignore[invalid-argument-type]
         client=client,
     )
 
@@ -662,7 +662,7 @@ def convert_entities(
         return []
 
     try:
-        return [convert_message_entity(None, entity) for entity in entities]
+        return [convert_message_entity(None, entity) for entity in entities]  # ty:ignore[invalid-return-type]
     except Exception as e:
         logger.warning(f"Failed to convert entities: {e}")
         return []
@@ -762,7 +762,7 @@ async def _upload_telegram_chat_message(
                     )
                 else:
                     await message.copy(
-                        node.upload_telegram_chat_id,
+                        node.upload_telegram_chat_id,  # ty:ignore[invalid-argument-type]
                         caption=caption,
                         parse_mode=enums.ParseMode.HTML,
                     )
@@ -799,7 +799,7 @@ async def forward_multi_media(
         media = getattr(message, message.media.value)
         if not media:
             return ForwardStatus.SkipForward
-        media_obj.media = media.file_id if media else ""
+        media_obj.media = media.file_id if media else ""  # ty:ignore[invalid-assignment]
 
     need_upload = False
     async with node.media_group_ids_lock:
@@ -828,7 +828,7 @@ async def forward_multi_media(
                 ui_file_name = (
                     f"****{os.path.splitext(file_name)[-1]}" if app.hide_file_name else file_name
                 )
-                media_obj.thumb = (
+                media_obj.thumb = (  # ty:ignore[invalid-assignment]
                     await download_thumbnail(client, app.temp_save_path, message)
                     if message.video
                     else None
@@ -837,7 +837,7 @@ async def forward_multi_media(
             _media = await cache_media(
                 client,
                 node.upload_telegram_chat_id,  # type: ignore
-                media_obj,
+                media_obj,  # ty:ignore[invalid-argument-type]
                 progress=update_upload_stat,
                 progress_args=(
                     message.id,
@@ -850,8 +850,8 @@ async def forward_multi_media(
         except Exception as e:
             logger.exception(f"{e}")
         finally:
-            if file_name and message.video and media_obj.thumb:
-                os.remove(str(media_obj.thumb))
+            if file_name and message.video and media_obj.thumb:  # ty:ignore[unresolved-attribute]
+                os.remove(str(media_obj.thumb))  # ty:ignore[unresolved-attribute]
 
         async with node.media_group_ids_lock:
             if not _media:
@@ -1133,7 +1133,7 @@ async def _report_bot_status(
         if new_msg_str != node.last_edit_msg:
             node.last_edit_msg = new_msg_str
             await client.edit_message_text(
-                node.from_user_id,
+                node.from_user_id,  # ty:ignore[invalid-argument-type]
                 node.reply_message_id,
                 new_msg_str,
                 parse_mode=pyrogram.enums.ParseMode.MARKDOWN,
@@ -1182,7 +1182,7 @@ async def retry(func: Callable, args: tuple = (), max_attempts=3, wait_second=15
     for _ in range(1, max_attempts + 1):
         try:
             return await func(*args)
-        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:
+        except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:  # ty:ignore[possibly-missing-submodule]
             logger.warning("bad call retry: FlowWait {}", wait_err.value)
             await asyncio.sleep(wait_err.value)
         except Exception as e:
@@ -1232,7 +1232,7 @@ async def check_user_permission(
     """
     try:
         member = await client.get_chat_member(chat_id, user_id)
-        return member and (not member.permissions or member.permissions.can_send_media_messages)
+        return member and (not member.permissions or member.permissions.can_send_media_messages)  # ty:ignore[invalid-return-type]
     except Exception:
         # logger.exception(e)
         pass
@@ -1278,9 +1278,9 @@ async def parse_link(client: pyrogram.Client, link_str: str):
     """Parse link"""
     link = extract_info_from_link(link_str)
     if link.comment_id:
-        chat = await client.get_chat(link.group_id)
+        chat = await client.get_chat(link.group_id)  # ty:ignore[invalid-argument-type]
         if chat:
-            return chat.linked_chat.id, link.comment_id, link.topic_id
+            return chat.linked_chat.id, link.comment_id, link.topic_id  # ty:ignore[unresolved-attribute]
 
     return link.group_id, link.post_id, link.topic_id
 
@@ -1367,10 +1367,10 @@ async def update_upload_stat(
 
 
 # pylint: enable=W0201
-class HookSession(pyrogram.session.Session):
+class HookSession(pyrogram.session.Session):  # ty:ignore[possibly-missing-submodule]
     """Hook Session"""
 
-    def start_timeout(self: pyrogram.session.Session, start_timeout: int):
+    def start_timeout(self: pyrogram.session.Session, start_timeout: int):  # ty:ignore[possibly-missing-submodule]
         """
         Set the start timeout for the session.
 
@@ -1470,11 +1470,11 @@ async def forward_messages(
     message_ids: int | Iterable[int],
     disable_notification: bool | None = None,
     schedule_date: datetime | None = None,
-    protect_content: bool = None,
+    protect_content: bool | None = None,
     drop_author: bool | None = None,
-    topic_id: int = None,
-    caption: str = None,
-    caption_entities: list[pyrogram.types.MessageEntity] = None,
+    topic_id: int | None = None,
+    caption: str | None = None,
+    caption_entities: list[pyrogram.types.MessageEntity] | None = None,
 ) -> Union["types.Message", list["types.Message"]]:
     """Forward messages of any kind."""
 
@@ -1483,12 +1483,12 @@ async def forward_messages(
 
     r = await client.invoke(
         pyrogram.raw.functions.messages.ForwardMessages(
-            to_peer=await client.resolve_peer(chat_id),
-            from_peer=await client.resolve_peer(from_chat_id),
+            to_peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+            from_peer=await client.resolve_peer(from_chat_id),  # ty:ignore[invalid-argument-type]
             id=message_ids,
             silent=disable_notification or None,
             random_id=[client.rnd_id() for _ in message_ids],
-            schedule_date=pyrogram.utils.datetime_to_timestamp(schedule_date),
+            schedule_date=pyrogram.utils.datetime_to_timestamp(schedule_date),  # ty:ignore[possibly-missing-submodule]
             noforwards=protect_content,
             drop_author=drop_author,
             top_msg_id=topic_id,
@@ -1516,10 +1516,10 @@ async def forward_messages(
 
     if caption and not is_iterable and forwarded_messages:
         await client.edit_message_caption(
-            chat_id,
+            chat_id,  # ty:ignore[invalid-argument-type]
             forwarded_messages[0].id,
             caption=caption,
-            caption_entities=caption_entities,
+            caption_entities=caption_entities,  # ty:ignore[invalid-argument-type]
         )
 
     return types.List(forwarded_messages) if is_iterable else forwarded_messages[0]

@@ -29,9 +29,9 @@ async def get_chunk_v2(
         client,
         await client.invoke(
             raw.functions.messages.GetHistory(
-                peer=await client.resolve_peer(chat_id),
+                peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                 offset_id=from_message_id,
-                offset_date=utils.datetime_to_timestamp(from_date),
+                offset_date=utils.datetime_to_timestamp(from_date),  # ty:ignore[invalid-argument-type]
                 add_offset=offset * (-1 if reverse else 1) - (limit if reverse else 0),
                 limit=limit,
                 max_id=max_id,

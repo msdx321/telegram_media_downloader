@@ -33,6 +33,5 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: Ty type check (advisory)
+      - name: Ty type check
         run: uv run ty check media_downloader.py utils module
-        continue-on-error: true  # pre-existing type errors

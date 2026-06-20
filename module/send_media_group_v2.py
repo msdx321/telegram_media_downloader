@@ -24,7 +24,7 @@ async def cache_media(
         "types.InputMediaAudio",
         "types.InputMediaDocument",
     ],
-    progress: Callable = None,
+    progress: Callable | None = None,
     progress_args: tuple = (),
 ) -> raw.base.InputSingleMedia:
     """
@@ -40,14 +40,14 @@ async def cache_media(
             if os.path.isfile(media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                         media=raw.types.InputMediaUploadedPhoto(
                             file=await client.save_file(
                                 media_obj.media,
-                                progress=progress,
+                                progress=progress,  # ty:ignore[invalid-argument-type]
                                 progress_args=progress_args,
                             )
-                        ),
+                        ),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -56,13 +56,13 @@ async def cache_media(
                         id=media.photo.id,
                         access_hash=media.photo.access_hash,
                         file_reference=media.photo.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             elif re.match("^https?://", media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
-                        media=raw.types.InputMediaPhotoExternal(url=media_obj.media),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+                        media=raw.types.InputMediaPhotoExternal(url=media_obj.media),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -71,21 +71,21 @@ async def cache_media(
                         id=media.photo.id,
                         access_hash=media.photo.access_hash,
                         file_reference=media.photo.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             else:
                 media = utils.get_input_media_from_file_id(media_obj.media, FileType.PHOTO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
-                    peer=await client.resolve_peer(chat_id),
+                    peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                     media=raw.types.InputMediaUploadedPhoto(
                         file=await client.save_file(
                             media_obj.media,
-                            progress=progress,
+                            progress=progress,  # ty:ignore[invalid-argument-type]
                             progress_args=progress_args,
                         )
-                    ),
+                    ),  # ty:ignore[invalid-argument-type]
                 )
             )
 
@@ -94,18 +94,18 @@ async def cache_media(
                     id=media.photo.id,
                     access_hash=media.photo.access_hash,
                     file_reference=media.photo.file_reference,
-                )
+                )  # ty:ignore[invalid-argument-type]
             )
     elif isinstance(media_obj, types.InputMediaVideo):
         if isinstance(media_obj.media, str):
             if os.path.isfile(media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                         media=raw.types.InputMediaUploadedDocument(
                             file=await client.save_file(
                                 media_obj.media,
-                                progress=progress,
+                                progress=progress,  # ty:ignore[invalid-argument-type]
                                 progress_args=progress_args,
                             ),
                             thumb=await client.save_file(media_obj.thumb),
@@ -121,8 +121,8 @@ async def cache_media(
                                 raw.types.DocumentAttributeFilename(
                                     file_name=os.path.basename(media_obj.media)
                                 ),
-                            ],
-                        ),
+                            ],  # ty:ignore[invalid-argument-type]
+                        ),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -131,13 +131,13 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             elif re.match("^https?://", media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
-                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -146,18 +146,18 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             else:
                 media = utils.get_input_media_from_file_id(media_obj.media, FileType.VIDEO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
-                    peer=await client.resolve_peer(chat_id),
+                    peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                     media=raw.types.InputMediaUploadedDocument(
                         file=await client.save_file(
                             media_obj.media,
-                            progress=progress,
+                            progress=progress,  # ty:ignore[invalid-argument-type]
                             progress_args=progress_args,
                         ),
                         thumb=await client.save_file(media_obj.thumb),
@@ -176,8 +176,8 @@ async def cache_media(
                             raw.types.DocumentAttributeFilename(
                                 file_name=getattr(media_obj.media, "name", "video.mp4")
                             ),
-                        ],
-                    ),
+                        ],  # ty:ignore[invalid-argument-type]
+                    ),  # ty:ignore[invalid-argument-type]
                 )
             )
 
@@ -186,19 +186,19 @@ async def cache_media(
                     id=media.document.id,
                     access_hash=media.document.access_hash,
                     file_reference=media.document.file_reference,
-                )
+                )  # ty:ignore[invalid-argument-type]
             )
     elif isinstance(media_obj, types.InputMediaAudio):
         if isinstance(media_obj.media, str):
             if os.path.isfile(media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                         media=raw.types.InputMediaUploadedDocument(
                             mime_type=client.guess_mime_type(media_obj.media) or "audio/mpeg",
                             file=await client.save_file(
                                 media_obj.media,
-                                progress=progress,
+                                progress=progress,  # ty:ignore[invalid-argument-type]
                                 progress_args=progress_args,
                             ),
                             thumb=await client.save_file(media_obj.thumb),
@@ -211,8 +211,8 @@ async def cache_media(
                                 raw.types.DocumentAttributeFilename(
                                     file_name=os.path.basename(media_obj.media)
                                 ),
-                            ],
-                        ),
+                            ],  # ty:ignore[invalid-argument-type]
+                        ),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -221,13 +221,13 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             elif re.match("^https?://", media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
-                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -236,14 +236,14 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             else:
                 media = utils.get_input_media_from_file_id(media_obj.media, FileType.AUDIO)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
-                    peer=await client.resolve_peer(chat_id),
+                    peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                     media=raw.types.InputMediaUploadedDocument(
                         mime_type=client.guess_mime_type(
                             getattr(media_obj.media, "name", "audio.mp3")
@@ -251,7 +251,7 @@ async def cache_media(
                         or "audio/mpeg",
                         file=await client.save_file(
                             media_obj.media,
-                            progress=progress,
+                            progress=progress,  # ty:ignore[invalid-argument-type]
                             progress_args=progress_args,
                         ),
                         thumb=await client.save_file(media_obj.thumb),
@@ -264,8 +264,8 @@ async def cache_media(
                             raw.types.DocumentAttributeFilename(
                                 file_name=getattr(media_obj.media, "name", "audio.mp3")
                             ),
-                        ],
-                    ),
+                        ],  # ty:ignore[invalid-argument-type]
+                    ),  # ty:ignore[invalid-argument-type]
                 )
             )
 
@@ -274,19 +274,19 @@ async def cache_media(
                     id=media.document.id,
                     access_hash=media.document.access_hash,
                     file_reference=media.document.file_reference,
-                )
+                )  # ty:ignore[invalid-argument-type]
             )
     elif isinstance(media_obj, types.InputMediaDocument):
         if isinstance(media_obj.media, str):
             if os.path.isfile(media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                         media=raw.types.InputMediaUploadedDocument(
                             mime_type=client.guess_mime_type(media_obj.media) or "application/zip",
                             file=await client.save_file(
                                 media_obj.media,
-                                progress=progress,
+                                progress=progress,  # ty:ignore[invalid-argument-type]
                                 progress_args=progress_args,
                             ),
                             thumb=await client.save_file(media_obj.thumb),
@@ -294,8 +294,8 @@ async def cache_media(
                                 raw.types.DocumentAttributeFilename(
                                     file_name=os.path.basename(media_obj.media)
                                 )
-                            ],
-                        ),
+                            ],  # ty:ignore[invalid-argument-type]
+                        ),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -304,13 +304,13 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             elif re.match("^https?://", media_obj.media):
                 media = await client.invoke(
                     raw.functions.messages.UploadMedia(
-                        peer=await client.resolve_peer(chat_id),
-                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),
+                        peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+                        media=raw.types.InputMediaDocumentExternal(url=media_obj.media),  # ty:ignore[invalid-argument-type]
                     )
                 )
 
@@ -319,14 +319,14 @@ async def cache_media(
                         id=media.document.id,
                         access_hash=media.document.access_hash,
                         file_reference=media.document.file_reference,
-                    )
+                    )  # ty:ignore[invalid-argument-type]
                 )
             else:
                 media = utils.get_input_media_from_file_id(media_obj.media, FileType.DOCUMENT)
         else:
             media = await client.invoke(
                 raw.functions.messages.UploadMedia(
-                    peer=await client.resolve_peer(chat_id),
+                    peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
                     media=raw.types.InputMediaUploadedDocument(
                         mime_type=client.guess_mime_type(
                             getattr(media_obj.media, "name", "file.zip")
@@ -334,7 +334,7 @@ async def cache_media(
                         or "application/zip",
                         file=await client.save_file(
                             media_obj.media,
-                            progress=progress,
+                            progress=progress,  # ty:ignore[invalid-argument-type]
                             progress_args=progress_args,
                         ),
                         thumb=await client.save_file(media_obj.thumb),
@@ -342,8 +342,8 @@ async def cache_media(
                             raw.types.DocumentAttributeFilename(
                                 file_name=getattr(media_obj.media, "name", "file.zip")
                             )
-                        ],
-                    ),
+                        ],  # ty:ignore[invalid-argument-type]
+                    ),  # ty:ignore[invalid-argument-type]
                 )
             )
 
@@ -352,7 +352,7 @@ async def cache_media(
                     id=media.document.id,
                     access_hash=media.document.access_hash,
                     file_reference=media.document.file_reference,
-                )
+                )  # ty:ignore[invalid-argument-type]
             )
     else:
         raise ValueError(
@@ -360,12 +360,12 @@ async def cache_media(
         )
 
     return raw.types.InputSingleMedia(
-        media=media,
+        media=media,  # ty:ignore[invalid-argument-type]
         random_id=client.rnd_id(),
         **await client.parser.parse(
             media_obj.caption if media_obj.caption and media_obj.caption != "None" else ""
         ),
-    )
+    )  # ty:ignore[invalid-return-type]
 
 
 # pylint: disable = R0913
@@ -375,39 +375,39 @@ async def send_media_group_v2(
     multi_media: list[raw.types.InputSingleMedia],
     disable_notification: bool | None = None,
     schedule_date: datetime | None = None,
-    quote_text: str = None,
+    quote_text: str | None = None,
     parse_mode: Optional["pyrogram.enums.ParseMode"] = None,
-    message_thread_id: int = None,
+    message_thread_id: int | None = None,
     reply_to_message_id: int | None = None,
     reply_to_chat_id: int | str | None = None,
-    reply_to_story_id: int = None,
-    quote_entities: list["types.MessageEntity"] = None,
-    quote_offset: int = None,
-    show_above_text: bool = None,
+    reply_to_story_id: int | None = None,
+    quote_entities: list["types.MessageEntity"] | None = None,
+    quote_offset: int | None = None,
+    show_above_text: bool | None = None,
 ):
     """
     see pyrogram
     """
     quote_text, quote_entities = (
-        await utils.parse_text_entities(client, quote_text, parse_mode, quote_entities)
-    ).values()
+        await utils.parse_text_entities(client, quote_text, parse_mode, quote_entities)  # ty:ignore[invalid-argument-type]
+    ).values()  # ty:ignore[invalid-assignment]
 
     r = await client.invoke(
         raw.functions.messages.SendMultiMedia(
-            peer=await client.resolve_peer(chat_id),
-            multi_media=multi_media,
+            peer=await client.resolve_peer(chat_id),  # ty:ignore[invalid-argument-type]
+            multi_media=multi_media,  # ty:ignore[invalid-argument-type]
             silent=disable_notification or None,
             reply_to=utils.get_reply_to(
                 reply_to_message_id=reply_to_message_id,
                 message_thread_id=message_thread_id,
                 reply_to_peer=await client.resolve_peer(reply_to_chat_id)
                 if reply_to_chat_id
-                else None,
+                else None,  # ty:ignore[invalid-argument-type]
                 reply_to_story_id=reply_to_story_id,
                 quote_text=quote_text,
-                quote_entities=quote_entities,
+                quote_entities=quote_entities,  # ty:ignore[invalid-argument-type]
                 quote_offset=quote_offset,
-            ),
+            ),  # ty:ignore[invalid-argument-type]
             schedule_date=utils.datetime_to_timestamp(schedule_date),
             invert_media=show_above_text,
         ),
