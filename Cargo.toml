@@ -13,6 +13,7 @@ grammers-client = { git = "https://codeberg.org/Lonami/grammers", package = "gra
 grammers-session = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-session" }
 grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-mtsender" }
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 anyhow = "1"

@@ -6,7 +6,7 @@ mod webui;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use std::time::{Duration, Instant};
@@ -16,10 +16,11 @@ use grammers_client::media::Media;
 use grammers_client::{Client, SignInError};
 use grammers_mtsender::SenderPool;
 use grammers_session::storages::SqliteSession;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::{Mutex, Semaphore};
+use tokio_util::sync::CancellationToken;
 
 use crate::config::{
     load_app_data, load_config, save_app_data, save_config, ChatConfig, ChatData, Config,
@@ -39,17 +40,9 @@ const DOWNLOAD_CHUNK_SIZE: u64 = 512 * 1024;
 const RESUME_WORKERS: u64 = 4;
 const MAX_AUTH_FLOOD_RETRIES: u32 = 3;
 const CHUNK_RETRY_LIMIT: u32 = 3;
-
-#[cfg(unix)]
-const SIGINT: i32 = 2;
-
-#[cfg(unix)]
-const SIG_DFL: usize = 0;
-
-#[cfg(unix)]
-unsafe extern "C" {
-    fn signal(signum: i32, handler: usize) -> usize;
-}
+/// Minimum bytes between `.progress` sidecar flushes, bounding how much
+/// progress an interruption can lose.
+const PROGRESS_FLUSH_BYTES: u64 = 16 * 1024 * 1024;
 
 #[cfg(target_os = "linux")]
 unsafe extern "C" {
@@ -58,28 +51,44 @@ unsafe extern "C" {
     fn posix_fallocate(fd: i32, offset: i64, len: i64) -> i32;
 }
 
-/// Reset SIGINT to its default disposition so Ctrl+C terminates the process
-/// immediately instead of going through a graceful-shutdown path.
-#[cfg(unix)]
-fn reset_sigint_to_default() {
-    unsafe {
-        signal(SIGINT, SIG_DFL);
+// ── Shutdown coordination ──────────────────────────────────────────────────
+
+/// Process-wide cancellation token, tripped by SIGINT.
+///
+/// Cloneable and cheap; every downloader coroutine holds a clone so the signal
+/// handler can cancel them all at once. `cancelled()` resolves the moment the
+/// token is tripped, so futures can race it against network I/O via `select!`
+/// for a prompt, cooperative stop.
+#[derive(Clone)]
+struct Shutdown {
+    token: CancellationToken,
+}
+
+impl Shutdown {
+    fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+        }
+    }
+
+    /// Trip the token. Idempotent.
+    fn cancel(&self) {
+        self.token.cancel();
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.token.is_cancelled()
+    }
+
+    /// Resolves once the token has been tripped.
+    async fn cancelled(&self) {
+        self.token.cancelled().await;
     }
 }
 
-#[cfg(not(unix))]
-fn reset_sigint_to_default() {}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    reset_sigint_to_default();
-
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .filter_module("grammers_mtsender", log::LevelFilter::Warn)
-        .filter_module("grammers_mtproto", log::LevelFilter::Warn)
-        .filter_module("grammers_client", log::LevelFilter::Warn)
-        .filter_module("tracing::span", log::LevelFilter::Warn)
-        .init();
+    init_logger();
     info!("Telegram Media Downloader (Rust) — starting");
 
     let cfg = load_config(CONFIG_FILE)?;
@@ -90,10 +99,89 @@ async fn main() -> anyhow::Result<()> {
         cfg.web_port,
     ));
 
-    run_downloader(cfg, web_state).await
+    let shutdown = Shutdown::new();
+    install_signal_handler(shutdown.clone());
+
+    let result = run_downloader(cfg, web_state, shutdown.clone()).await;
+
+    // If the downloader returned due to a signal, the token is already
+    // cancelled; otherwise cancel it so any straggler tasks stop before exit.
+    shutdown.cancel();
+    result
 }
 
-async fn run_downloader(mut cfg: Config, web_state: Arc<WebState>) -> anyhow::Result<()> {
+/// Configure `env_logger` with a verbose single-line format:
+/// `YYYY-MM-DDTHH:MM:SS LEVEL  target  message`, level coloured. Verbosity comes
+/// from `RUST_LOG` (default `info`); chatty library crates are pinned to `warn`.
+fn init_logger() {
+    use std::io::Write;
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .filter_module("grammers_mtsender", log::LevelFilter::Warn)
+        .filter_module("grammers_mtproto", log::LevelFilter::Warn)
+        .filter_module("grammers_client", log::LevelFilter::Warn)
+        .filter_module("grammers_session", log::LevelFilter::Warn)
+        .filter_module("turso_core", log::LevelFilter::Warn)
+        .filter_module("tracing::span", log::LevelFilter::Warn)
+        .filter_module("hyper", log::LevelFilter::Warn)
+        .filter_module("axum", log::LevelFilter::Warn)
+        .format(|buf, record| {
+            // `default_level_style` returns an `anstyle::Style`; rendering it
+            // applies the colour, `{style:#}` emits the reset.
+            let style = buf.default_level_style(record.level());
+            writeln!(
+                buf,
+                "{} {style}{:<5}{style:#} {} | {}",
+                buf.timestamp(),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
+        .init();
+}
+
+/// Spawn the SIGINT handler.
+///
+/// The first Ctrl+C trips the `shutdown` token, which cooperatively cancels
+/// every downloader coroutine so their state can be flushed and the process can
+/// exit cleanly. A second Ctrl+C bails out immediately with exit code 130.
+fn install_signal_handler(shutdown: Shutdown) {
+    tokio::spawn(async move {
+        if !wait_for_interrupt().await {
+            return;
+        }
+        warn!("interrupt received — draining downloads and saving state (Ctrl+C again to force)");
+        shutdown.cancel();
+        if wait_for_interrupt().await {
+            eprintln!("second interrupt — forcing immediate exit");
+            std::process::exit(130);
+        }
+    });
+}
+
+#[cfg(unix)]
+async fn wait_for_interrupt() -> bool {
+    use tokio::signal::unix::{signal, SignalKind};
+    match signal(SignalKind::interrupt()) {
+        Ok(mut sig) => sig.recv().await.is_some(),
+        Err(e) => {
+            warn!("cannot install SIGINT handler: {e}; Ctrl+C will not shut down gracefully");
+            false
+        }
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_interrupt() -> bool {
+    tokio::signal::ctrl_c().await.is_ok()
+}
+
+async fn run_downloader(
+    mut cfg: Config,
+    web_state: Arc<WebState>,
+    shutdown: Shutdown,
+) -> anyhow::Result<()> {
     web_state.set_status("running").await;
 
     let mut data = load_app_data(DATA_FILE)?;
@@ -131,81 +219,253 @@ async fn run_downloader(mut cfg: Config, web_state: Arc<WebState>) -> anyhow::Re
         .max_concurrent_transmissions
         .unwrap_or(cfg.max_download_task);
     let dl_semaphore = Arc::new(Semaphore::new(concurrency));
-    info!("concurrency: {concurrency} parallel downloads");
     let mp = Arc::new(MultiProgress::new());
     let runtime = DownloadRuntime {
-        file_ids,
+        file_ids: file_ids.clone(),
         dl_sem: dl_semaphore,
         mp,
         web_state: web_state.clone(),
     };
+
+    log_config_summary(&cfg, &data_chats, concurrency);
+
+    let started = Instant::now();
+    let mut cycle_no: u64 = 0;
     loop {
-        run_check_cycle(&client, &mut cfg, &runtime, &mut data, &mut data_chats).await?;
+        cycle_no += 1;
+        let cycle_started = Instant::now();
+        let completed =
+            run_check_cycle(&client, &mut cfg, &runtime, &mut data_chats, &shutdown).await?;
+
+        // Persist after every cycle (full or interrupted) so data.yaml tracks
+        // the live file-id cache and per-chat retry sets even on shutdown.
+        persist_state(&file_ids, &data_chats).await?;
+        debug!(
+            "cycle {cycle_no}: persisted state to {DATA_FILE} and {CONFIG_FILE} ({} file ids, {} chats pending)",
+            file_ids.lock().await.len(),
+            data_chats.values().map(|c| c.ids_to_retry.len()).sum::<usize>()
+        );
+
+        if !completed || shutdown.is_cancelled() {
+            break;
+        }
+        info!(
+            "cycle {cycle_no} complete in {:.1}s — sleeping {}s (Ctrl+C to shut down)",
+            cycle_started.elapsed().as_secs_f64(),
+            cfg.check_interval_secs
+        );
         web_state
             .set_status(&format!(
                 "waiting {}s before next check",
                 cfg.check_interval_secs
             ))
             .await;
-        info!(
-            "cycle complete; sleeping {}s before next check",
-            cfg.check_interval_secs
-        );
-        tokio::time::sleep(Duration::from_secs(cfg.check_interval_secs)).await;
+        tokio::select! {
+            _ = shutdown.cancelled() => break,
+            _ = tokio::time::sleep(Duration::from_secs(cfg.check_interval_secs)) => {}
+        }
         web_state.set_status("running").await;
+    }
+
+    web_state.set_status("shutting down").await;
+    log_shutdown_summary(&cfg, &data_chats, &file_ids, started).await;
+    info!("graceful shutdown complete");
+    Ok(())
+}
+
+/// Build `data.yaml` from the live file-id cache and per-chat retry sets and
+/// write it atomically. `config.yaml` is updated incrementally by
+/// `update_chat_state` as each chat finishes, so only `data.yaml` is saved here.
+async fn persist_state(
+    file_ids: &Arc<Mutex<HashSet<String>>>,
+    data_chats: &HashMap<String, ChatData>,
+) -> anyhow::Result<()> {
+    let mut data = crate::config::AppData::default();
+    let mut ids: Vec<String> = file_ids.lock().await.iter().cloned().collect();
+    ids.sort();
+    data.downloaded_file_ids = ids;
+    let mut chats: Vec<ChatData> = data_chats.values().cloned().collect();
+    chats.sort_by(|a, b| a.chat_id.cmp(&b.chat_id));
+    data.chat = chats;
+    save_app_data(DATA_FILE, &data)
+}
+
+/// Log a one-time summary of the loaded configuration at startup.
+fn log_config_summary(cfg: &Config, data_chats: &HashMap<String, ChatData>, concurrency: usize) {
+    let pending: usize = data_chats.values().map(|c| c.ids_to_retry.len()).sum();
+    info!(
+        "config: {} chat(s), {concurrency} parallel download slot(s), scan every {}s, save_path={}",
+        cfg.chat.len(),
+        cfg.check_interval_secs,
+        cfg.save_path.display()
+    );
+    info!(
+        "config: media_types=[{}] txt_download={} web_ui={}:{}",
+        cfg.media_types.join(","),
+        cfg.enable_download_txt,
+        cfg.web_host,
+        cfg.web_port
+    );
+    for c in &cfg.chat {
+        let retry = data_chats
+            .get(&c.chat_id)
+            .map(|d| d.ids_to_retry.len())
+            .unwrap_or(0);
+        info!(
+            "config: chat '{}' from msg {} ({} id(s) queued for retry){}",
+            c.chat_id,
+            c.last_read_message_id,
+            retry,
+            c.download_filter
+                .as_deref()
+                .map(|f| format!(" filter='{f}'"))
+                .unwrap_or_default()
+        );
+    }
+    if pending > 0 {
+        info!("config: resuming with {pending} message id(s) pending retry across all chats");
     }
 }
 
+/// Log what was preserved across the run so the user knows resume is safe.
+async fn log_shutdown_summary(
+    cfg: &Config,
+    data_chats: &HashMap<String, ChatData>,
+    file_ids: &Arc<Mutex<HashSet<String>>>,
+    started: Instant,
+) {
+    let file_id_count = file_ids.lock().await.len();
+    let pending: usize = data_chats.values().map(|c| c.ids_to_retry.len()).sum();
+    info!(
+        "shutdown: ran for {:.1}s; {file_id_count} file id(s) cached, {pending} message id(s) pending retry",
+        started.elapsed().as_secs_f64()
+    );
+    for c in &cfg.chat {
+        let retry = data_chats
+            .get(&c.chat_id)
+            .map(|d| d.ids_to_retry.len())
+            .unwrap_or(0);
+        info!(
+            "shutdown: chat '{}' last_read={} ({} id(s) to retry) — partial downloads kept as .part for resume",
+            c.chat_id, c.last_read_message_id, retry
+        );
+    }
+    info!("shutdown: state flushed to {DATA_FILE} and {CONFIG_FILE}");
+}
+
+/// Outcome of scanning one chat.
+///
+/// `completed` is false when the scan was interrupted by shutdown; in that case
+/// `last_id` is the chat's existing `last_read_message_id` (unchanged) so the
+/// unscanned range is revisited next run, and any in-flight downloads are
+/// captured in the live retry set.
+struct ChatOutcome {
+    completed: bool,
+    last_id: i32,
+}
+
+/// Run one scan pass over every configured chat.
+///
+/// Returns `true` if the whole cycle ran to completion, `false` if it was cut
+/// short by shutdown. In either case `data_chats` is left holding the live
+/// retry sets, which `run_downloader` persists immediately after this returns.
 async fn run_check_cycle(
     client: &Client,
     cfg: &mut Config,
     runtime: &DownloadRuntime,
-    data: &mut crate::config::AppData,
     data_chats: &mut HashMap<String, ChatData>,
-) -> anyhow::Result<()> {
+    shutdown: &Shutdown,
+) -> anyhow::Result<bool> {
     let chats = cfg.chat.clone();
     for chat_cfg in &chats {
+        if shutdown.is_cancelled() {
+            return Ok(false);
+        }
         let chat_id = chat_cfg.chat_id.clone();
-        // Retry ids are persisted in data.yaml (data_chats), not in config.yaml.
-        let ids_to_retry: Vec<i32> = data_chats
+        // Retry ids live in data.yaml (data_chats). The scan mutates this set
+        // in place as downloads succeed or fail, so an interrupt still leaves a
+        // correct resume set behind.
+        let old_retry: HashSet<i32> = data_chats
             .get(&chat_id)
-            .map(|dc| dc.ids_to_retry.clone())
+            .map(|dc| dc.ids_to_retry.iter().copied().collect())
             .unwrap_or_default();
+        let live_retry = Arc::new(Mutex::new(old_retry));
 
-        match process_chat(client, cfg, chat_cfg, &ids_to_retry, runtime).await {
-            Ok(progress) => {
-                update_chat_state(cfg, chat_cfg, progress.last_id)?;
-                let failed = progress.failed_ids;
-                info!(
-                    "chat {}: saved last_read={}, {} failed ids",
-                    chat_id,
-                    progress.last_id,
-                    failed.len()
-                );
-                // Persist the new retry set back into data.yaml state.
-                // Drop the entry when nothing is pending so data.yaml stays clean.
-                if failed.is_empty() {
+        match process_chat(client, cfg, chat_cfg, live_retry.clone(), runtime, shutdown).await {
+            Ok(outcome) => {
+                let retry: Vec<i32> = {
+                    let mut v: Vec<i32> = live_retry.lock().await.iter().copied().collect();
+                    v.sort_unstable();
+                    v
+                };
+                if retry.is_empty() {
                     data_chats.remove(&chat_id);
                 } else {
                     data_chats
                         .entry(chat_id.clone())
-                        .and_modify(|dc| dc.ids_to_retry = failed.clone())
+                        .and_modify(|dc| dc.ids_to_retry = retry.clone())
                         .or_insert_with(|| ChatData {
-                            chat_id,
-                            ids_to_retry: failed,
+                            chat_id: chat_id.clone(),
+                            ids_to_retry: retry,
                         });
+                }
+
+                if outcome.completed {
+                    update_chat_state(cfg, chat_cfg, outcome.last_id)?;
+                    info!(
+                        "chat {}: scan complete — last_read advanced to {}, {} id(s) pending retry",
+                        chat_cfg.chat_id,
+                        outcome.last_id,
+                        data_chats
+                            .get(&chat_cfg.chat_id)
+                            .map(|d| d.ids_to_retry.len())
+                            .unwrap_or(0)
+                    );
+                } else {
+                    info!(
+                        "chat {}: scan interrupted at msg {} — state preserved for resume",
+                        chat_cfg.chat_id, outcome.last_id
+                    );
+                    return Ok(false);
                 }
             }
             Err(e) => {
+                // A real error (peer resolution, etc.). Still flush the live
+                // retry set so partial progress survives, then keep going unless
+                // we were also asked to shut down.
+                let retry: Vec<i32> = {
+                    let mut v: Vec<i32> = live_retry.lock().await.iter().copied().collect();
+                    v.sort_unstable();
+                    v
+                };
+                if retry.is_empty() {
+                    data_chats.remove(&chat_id);
+                } else {
+                    data_chats
+                        .entry(chat_id.clone())
+                        .and_modify(|dc| dc.ids_to_retry = retry.clone())
+                        .or_insert_with(|| ChatData {
+                            chat_id: chat_id.clone(),
+                            ids_to_retry: retry,
+                        });
+                }
                 error!("chat {chat_id}: {e:#}");
+                if shutdown.is_cancelled() {
+                    return Ok(false);
+                }
             }
         }
     }
+    Ok(true)
+}
 
-    data.downloaded_file_ids = runtime.file_ids.lock().await.iter().cloned().collect();
-    data.chat = data_chats.values().cloned().collect();
-    save_app_data(DATA_FILE, data)?;
-    Ok(())
+/// Wait while the web UI has paused downloads, but bail out immediately when
+/// `shutdown` is tripped. Returns `false` if shutdown was requested.
+async fn wait_paused(web_state: &WebState, shutdown: &Shutdown) -> bool {
+    tokio::select! {
+        _ = shutdown.cancelled() => false,
+        _ = web_state.wait_if_paused() => !shutdown.is_cancelled(),
+    }
 }
 
 // ── Interactive login ────────────────────────────────────────────────────
@@ -315,11 +575,6 @@ fn update_chat_state(
 
 // ── Chat download orchestrator ───────────────────────────────────────────
 
-struct ChatProgress {
-    last_id: i32,
-    failed_ids: Vec<i32>,
-}
-
 struct DownloadRuntime {
     file_ids: Arc<Mutex<HashSet<String>>>,
     dl_sem: Arc<Semaphore>,
@@ -327,20 +582,37 @@ struct DownloadRuntime {
     web_state: Arc<WebState>,
 }
 
+/// Counters for the per-chat scan summary, updated by spawned download tasks.
+#[derive(Default)]
+struct ChatStats {
+    scanned: AtomicU64,
+    downloaded: AtomicU64,
+    skipped: AtomicU64,
+    text_saved: AtomicU64,
+    failed: AtomicU64,
+}
+
 async fn process_chat(
     client: &Client,
     cfg: &Config,
     chat_cfg: &ChatConfig,
-    ids_to_retry: &[i32],
+    live_retry: Arc<Mutex<HashSet<i32>>>,
     runtime: &DownloadRuntime,
-) -> anyhow::Result<ChatProgress> {
-    let failed_ids = Arc::new(Mutex::new(HashSet::new()));
+    shutdown: &Shutdown,
+) -> anyhow::Result<ChatOutcome> {
+    // `retry_ids` mirrors the live set purely for scan-control: it tracks which
+    // retry ids have NOT yet been seen so the scan knows when it can stop. The
+    // live set itself is mutated by the download tasks (success removes, failure
+    // inserts) and is what gets persisted as `ids_to_retry`.
+    let mut retry_ids = live_retry.lock().await.clone();
     let mut last_id = chat_cfg.last_read_message_id;
-    let mut retry_ids: HashSet<i32> = ids_to_retry.iter().copied().collect();
+    let stats = Arc::new(ChatStats::default());
 
     info!(
-        "chat {}: beginning scan (from msg {})",
-        chat_cfg.chat_id, last_id
+        "chat {}: beginning scan (from msg {}, {} id(s) to retry)",
+        chat_cfg.chat_id,
+        last_id,
+        retry_ids.len()
     );
 
     let peer = client
@@ -358,48 +630,40 @@ async fn process_chat(
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))
         .unwrap_or(0);
-    info!("chat {}: ~{total} new messages available", chat_cfg.chat_id);
-
-    // If there are ids_to_retry, also fetch those specific messages first
-    if !ids_to_retry.is_empty() {
-        info!(
-            "chat {}: retrying {} failed messages from previous run",
-            chat_cfg.chat_id,
-            ids_to_retry.len()
-        );
-        // grammers doesn't have a convenient get_messages by IDs; we'll catch
-        // them during the main scan instead by not filtering them out.
-    }
+    info!("chat {}: ~{total} messages available", chat_cfg.chat_id);
 
     let filter_fn = build_filter_fn(chat_cfg, cfg);
-    let mut msg_count: u64 = 0;
     let mut tasks = Vec::new();
 
     loop {
-        runtime.web_state.wait_if_paused().await;
-        let msg = match messages.next().await {
-            Ok(Some(msg)) => msg,
-            Ok(None) => break,
-            Err(e) => {
-                let err_str = e.to_string();
-                if let Some(wait_secs) = flood_wait_secs(&err_str) {
-                    warn!(
-                        "chat {}: FLOOD_WAIT — sleeping {wait_secs}s",
-                        chat_cfg.chat_id
-                    );
-                    tokio::time::sleep(Duration::from_secs(wait_secs)).await;
-                } else {
-                    warn!(
-                        "chat {}: message iterator error: {err_str}",
-                        chat_cfg.chat_id
-                    );
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+        if shutdown.is_cancelled() {
+            break;
+        }
+        if !wait_paused(&runtime.web_state, shutdown).await {
+            break;
+        }
+
+        let msg = tokio::select! {
+            r = messages.next() => match r {
+                Ok(Some(m)) => m,
+                Ok(None) => break,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    let (secs, label) = match flood_wait_secs(&err_str) {
+                        Some(s) => (s, "FLOOD_WAIT"),
+                        None => (1, "iterator error"),
+                    };
+                    warn!("chat {}: {label} — sleeping {secs}s", chat_cfg.chat_id);
+                    if sleep_cancellable(shutdown, Duration::from_secs(secs)).await {
+                        break;
+                    }
+                    continue;
                 }
-                continue;
-            }
+            },
+            _ = shutdown.cancelled() => break,
         };
 
-        msg_count += 1;
+        stats.scanned.fetch_add(1, Ordering::Relaxed);
         let msg_id = msg.id();
 
         if msg_id <= chat_cfg.last_read_message_id && !retry_ids.remove(&msg_id) {
@@ -418,16 +682,32 @@ async fn process_chat(
         let has_text = !msg.text().is_empty();
 
         if !has_media && cfg.enable_download_txt && has_text {
-            // Download as .txt file
             let cfg = cfg.clone();
             let msg_clone = msg.clone();
-            let failed_ids = failed_ids.clone();
-            let permit = runtime.dl_sem.clone().acquire_owned().await?;
+            let live_retry = live_retry.clone();
+            let stats = stats.clone();
+            let shutdown = shutdown.clone();
+            let permit = tokio::select! {
+                p = runtime.dl_sem.clone().acquire_owned() => p?,
+                _ = shutdown.cancelled() => break,
+            };
             tasks.push(tokio::spawn(async move {
                 let _permit = permit;
-                if let Err(e) = save_text_message(&msg_clone, &cfg).await {
-                    warn!("txt msg {}: {e:#}", msg_clone.id());
-                    failed_ids.lock().await.insert(msg_clone.id());
+                tokio::select! {
+                    _ = shutdown.cancelled() => {
+                        debug!("txt msg {}: interrupted", msg_clone.id());
+                    }
+                    r = save_text_message(&msg_clone, &cfg) => match r {
+                        Ok(()) => {
+                            stats.text_saved.fetch_add(1, Ordering::Relaxed);
+                            live_retry.lock().await.remove(&msg_clone.id());
+                        }
+                        Err(e) => {
+                            warn!("txt msg {}: {e:#}", msg_clone.id());
+                            stats.failed.fetch_add(1, Ordering::Relaxed);
+                            live_retry.lock().await.insert(msg_clone.id());
+                        }
+                    }
                 }
             }));
             continue;
@@ -441,10 +721,12 @@ async fn process_chat(
             continue;
         };
         if !media_matches_config(&media, cfg) {
+            debug!("msg {msg_id}: media type not in config, skip");
             continue;
         }
 
         if !filter_fn(&msg) {
+            debug!("msg {msg_id}: filtered out");
             continue;
         }
 
@@ -452,45 +734,94 @@ async fn process_chat(
         let client = client.clone();
         let cfg = cfg.clone();
         let file_ids = runtime.file_ids.clone();
-        let failed_ids = failed_ids.clone();
-        let permit = runtime.dl_sem.clone().acquire_owned().await?;
+        let live_retry = live_retry.clone();
+        let stats = stats.clone();
+        let shutdown = shutdown.clone();
+        let permit = tokio::select! {
+            p = runtime.dl_sem.clone().acquire_owned() => p?,
+            _ = shutdown.cancelled() => break,
+        };
 
         let mp = runtime.mp.clone();
         let web_state = runtime.web_state.clone();
         tasks.push(tokio::spawn(async move {
             let _permit = permit;
             let _mp = mp;
-            match download_media_inner(&client, &msg, &cfg, &file_ids, _mp.as_ref(), &web_state)
-                .await
+            // NB: dropped _permit here releases concurrency slot
+            match download_media_inner(
+                &client,
+                &msg,
+                &cfg,
+                &file_ids,
+                _mp.as_ref(),
+                &web_state,
+                &shutdown,
+            )
+            .await
             {
-                Ok(true) => info!("msg {}: downloaded successfully", msg.id()),
-                Ok(false) => {} // skipped
+                Ok(true) => {
+                    stats.downloaded.fetch_add(1, Ordering::Relaxed);
+                    live_retry.lock().await.remove(&msg.id());
+                }
+                Ok(false) => {
+                    stats.skipped.fetch_add(1, Ordering::Relaxed);
+                    live_retry.lock().await.remove(&msg.id());
+                }
                 Err(e) => {
-                    warn!("msg {}: download failed — {e:#}", msg.id());
-                    failed_ids.lock().await.insert(msg.id());
+                    if shutdown.is_cancelled() {
+                        debug!("msg {}: interrupted — kept for resume", msg.id());
+                    } else {
+                        warn!("msg {}: download failed — {e:#}", msg.id());
+                        stats.failed.fetch_add(1, Ordering::Relaxed);
+                        live_retry.lock().await.insert(msg.id());
+                    }
                 }
             }
-            // NB: dropped _permit here releases concurrency slot
         }));
     }
 
+    // On shutdown, abort in-flight tasks at once. Their `.part` files hold a
+    // contiguous prefix already, so resume picks up cleanly next run.
+    if shutdown.is_cancelled() {
+        for task in &tasks {
+            task.abort();
+        }
+    }
     for task in tasks {
-        if let Err(e) = task.await {
-            warn!("download task join failed: {e}");
+        match task.await {
+            Ok(()) => {}
+            Err(e) if e.is_cancelled() => {}
+            Err(e) => warn!("download task panicked: {e}"),
         }
     }
 
+    let completed = !shutdown.is_cancelled();
+    let last_id = if completed {
+        last_id
+    } else {
+        chat_cfg.last_read_message_id
+    };
     info!(
-        "chat {}: scanned {msg_count} messages, last_id={last_id}",
-        chat_cfg.chat_id
+        "chat {}: scanned {} msg(s) — downloaded {}, skipped {}, text {}, failed {}, last_id={}{}",
+        chat_cfg.chat_id,
+        stats.scanned.load(Ordering::Relaxed),
+        stats.downloaded.load(Ordering::Relaxed),
+        stats.skipped.load(Ordering::Relaxed),
+        stats.text_saved.load(Ordering::Relaxed),
+        stats.failed.load(Ordering::Relaxed),
+        last_id,
+        if completed { "" } else { " [interrupted]" }
     );
 
-    let mut failed_ids: Vec<i32> = failed_ids.lock().await.iter().copied().collect();
-    failed_ids.sort_unstable();
-    Ok(ChatProgress {
-        last_id,
-        failed_ids,
-    })
+    Ok(ChatOutcome { completed, last_id })
+}
+
+/// Sleep for `dur`, returning early (`true`) if `shutdown` is tripped.
+async fn sleep_cancellable(shutdown: &Shutdown, dur: Duration) -> bool {
+    tokio::select! {
+        _ = shutdown.cancelled() => true,
+        _ = tokio::time::sleep(dur) => false,
+    }
 }
 
 // ── Text message download ────────────────────────────────────────────────
@@ -711,6 +1042,7 @@ async fn download_media_inner(
     file_ids: &Arc<tokio::sync::Mutex<HashSet<String>>>,
     mp: &MultiProgress,
     web_state: &Arc<WebState>,
+    shutdown: &Shutdown,
 ) -> anyhow::Result<bool> {
     let media = match msg.media() {
         Some(m) => m,
@@ -727,7 +1059,7 @@ async fn download_media_inner(
     if !fid.is_empty() {
         let cache = file_ids.lock().await;
         if cache.contains(&fid) {
-            info!("msg={msg_id}: already downloaded (file_unique_id), skipped");
+            debug!("msg={msg_id}: already downloaded (file_unique_id), skipped");
             return Ok(false);
         }
         drop(cache);
@@ -737,7 +1069,7 @@ async fn download_media_inner(
 
     // Already fully downloaded?
     if final_path.exists() {
-        info!("msg={msg_id}: file already exists, skipped");
+        debug!("msg={msg_id}: file already exists, skipped");
         let mut cache = file_ids.lock().await;
         if !fid.is_empty() {
             cache.insert(fid);
@@ -757,11 +1089,50 @@ async fn download_media_inner(
         .download_started(msg_id, &final_path, existing, total)
         .await;
 
+    // The sidecar marks a prior run as fully fetched but not yet renamed into
+    // place. Promote it directly instead of re-fetching the whole file.
+    if total > 0 && existing == total {
+        info!(
+            "msg={msg_id}: already complete, finalizing {}",
+            format_byte(total as f64)
+        );
+        finalize_download(
+            msg_id,
+            &fid,
+            file_ids,
+            &temp_path,
+            &final_path,
+            total,
+            web_state,
+        )
+        .await?;
+        return Ok(true);
+    }
+
+    if existing > 0 {
+        info!(
+            "msg={msg_id}: resuming from {} of {}",
+            format_byte(existing as f64),
+            format_byte(total as f64)
+        );
+    } else {
+        info!(
+            "msg={msg_id}: downloading {} -> {}",
+            format_byte(total as f64),
+            final_path.display()
+        );
+    }
+
     let mut last_err = None;
     for attempt in 0..RETRY_LIMIT {
+        if shutdown.is_cancelled() {
+            break;
+        }
         if attempt > 0 {
-            tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
             info!("msg={msg_id}: retry {}/{}", attempt + 1, RETRY_LIMIT);
+            if sleep_cancellable(shutdown, Duration::from_secs(RETRY_DELAY_SECS)).await {
+                break;
+            }
         }
 
         // Re-evaluate the resume offset each attempt: a failed attempt leaves
@@ -783,18 +1154,25 @@ async fn download_media_inner(
         pb.set_message(format!("{msg_id}"));
         if downloaded > 0 {
             pb.set_position(downloaded);
-            if attempt == 0 {
-                info!("msg={msg_id}: resuming from {downloaded} bytes");
-            }
         }
 
         if total == 0 {
-            web_state.wait_if_paused().await;
-            if let Err(e) = client.download_media(&media, &temp_path).await {
-                last_err = Some(e.into());
+            if !wait_paused(web_state, shutdown).await {
+                pb.finish_and_clear();
+                break;
+            }
+            let outcome = tokio::select! {
+                r = client.download_media(&media, &temp_path) => r.map_err(|e| e.into()),
+                _ = shutdown.cancelled() => Err(anyhow::anyhow!("interrupted")),
+            };
+            if let Err(e) = outcome {
+                last_err = Some(e);
                 pb.finish_and_clear();
                 drop(pb);
-                tokio::fs::remove_file(&temp_path).await.ok();
+                if shutdown.is_cancelled() {
+                    break;
+                }
+                discard_partial(&temp_path).await;
                 continue;
             }
             pb.set_position(total);
@@ -804,12 +1182,16 @@ async fn download_media_inner(
                 web_state,
                 msg_id,
             };
-            if let Err(e) =
-                download_concurrent(client, &media, &temp_path, downloaded, total, &progress).await
+            if let Err(e) = download_concurrent(
+                client, &media, &temp_path, downloaded, total, &progress, shutdown,
+            )
+            .await
             {
                 // Keep the partial file so the next attempt resumes; only the
                 // unfetched chunks need re-downloading.
-                warn!("msg={msg_id}: {e:#}");
+                if !shutdown.is_cancelled() {
+                    warn!("msg={msg_id}: {e:#}");
+                }
                 last_err = Some(e);
                 pb.finish_and_clear();
                 drop(pb);
@@ -829,40 +1211,72 @@ async fn download_media_inner(
 
         if total > 0 && actual != total {
             warn!("msg={msg_id}: size mismatch ({actual} vs {total}) — retrying");
-            tokio::fs::remove_file(&temp_path).await.ok();
+            discard_partial(&temp_path).await;
             last_err = Some(anyhow::anyhow!("size mismatch"));
             continue;
         }
 
-        // Move temp -> final
-        tokio::fs::create_dir_all(final_path.parent().unwrap_or(Path::new("."))).await?;
-        tokio::fs::rename(&temp_path, &final_path).await?;
-
-        if !fid.is_empty() {
-            let mut cache = file_ids.lock().await;
-            if cache.len() >= MAX_FILE_ID_CACHE {
-                // HashSet order is arbitrary, so this evicts a random entry
-                // (not truly the oldest). Fine for a dedup cache: the worst
-                // case is a one-off re-download of the evicted file.
-                if let Some(evicted) = cache.iter().next().cloned() {
-                    cache.remove(&evicted);
-                }
-            }
-            cache.insert(fid);
-        }
-
-        info!(
-            "msg={msg_id}: {} -> {}",
-            format_byte(actual as f64),
-            final_path.display()
-        );
-        web_state.download_finished(msg_id, actual, true).await;
+        finalize_download(
+            msg_id,
+            &fid,
+            file_ids,
+            &temp_path,
+            &final_path,
+            actual,
+            web_state,
+        )
+        .await?;
         return Ok(true);
     }
 
-    tokio::fs::remove_file(&temp_path).await.ok();
+    // On shutdown, keep the `.part` file so the download resumes next run. On a
+    // real failure (retries exhausted), delete it so we start fresh.
+    if !shutdown.is_cancelled() {
+        discard_partial(&temp_path).await;
+    }
     web_state.download_finished(msg_id, 0, false).await;
+    if shutdown.is_cancelled() {
+        return Err(anyhow::anyhow!("download interrupted"));
+    }
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("download failed")))
+}
+
+/// Promote a completed `.part` file to its final name, record its file id in
+/// the dedup cache, and notify the web UI. The caller has already validated
+/// `actual` against the expected size.
+async fn finalize_download(
+    msg_id: i32,
+    fid: &str,
+    file_ids: &Arc<tokio::sync::Mutex<HashSet<String>>>,
+    temp_path: &Path,
+    final_path: &Path,
+    actual: u64,
+    web_state: &Arc<WebState>,
+) -> anyhow::Result<()> {
+    tokio::fs::create_dir_all(final_path.parent().unwrap_or(Path::new("."))).await?;
+    tokio::fs::rename(temp_path, final_path).await?;
+    let _ = tokio::fs::remove_file(progress_path(temp_path)).await;
+
+    if !fid.is_empty() {
+        let mut cache = file_ids.lock().await;
+        if cache.len() >= MAX_FILE_ID_CACHE {
+            // HashSet order is arbitrary, so this evicts a random entry
+            // (not truly the oldest). Fine for a dedup cache: the worst
+            // case is a one-off re-download of the evicted file.
+            if let Some(evicted) = cache.iter().next().cloned() {
+                cache.remove(&evicted);
+            }
+        }
+        cache.insert(fid.to_string());
+    }
+
+    info!(
+        "msg={msg_id}: saved {} -> {}",
+        format_byte(actual as f64),
+        final_path.display()
+    );
+    web_state.download_finished(msg_id, actual, true).await;
+    Ok(())
 }
 
 struct DownloadProgress<'a> {
@@ -878,6 +1292,7 @@ async fn download_concurrent(
     start: u64,
     total: u64,
     progress: &DownloadProgress<'_>,
+    shutdown: &Shutdown,
 ) -> anyhow::Result<()> {
     let chunk_size = DOWNLOAD_CHUNK_SIZE;
     let start_chunk = start / chunk_size;
@@ -896,6 +1311,7 @@ async fn download_concurrent(
         let tx = tx.clone();
         let web_state = progress.web_state.clone();
         let abort = abort.clone();
+        let shutdown = shutdown.clone();
 
         tasks.push(tokio::spawn(async move {
             // Striped assignment: this worker owns chunks worker, worker+n, ...
@@ -903,13 +1319,15 @@ async fn download_concurrent(
             // ends grammers' stream early) only affects that one piece.
             let mut idx = start_chunk + worker;
             while idx < total_chunks {
-                if abort.load(Ordering::Relaxed) {
+                if abort.load(Ordering::Relaxed) || shutdown.is_cancelled() {
                     break;
                 }
-                web_state.wait_if_paused().await;
+                if !wait_paused(&web_state, &shutdown).await {
+                    break;
+                }
                 let offset = idx * chunk_size;
                 let expected = (total - offset).min(chunk_size);
-                match fetch_chunk(&client, &media, idx, expected).await {
+                match fetch_chunk(&client, &media, idx, expected, &shutdown).await {
                     Ok(chunk) => {
                         if tx.send((offset, chunk)).is_err() {
                             break; // receiver gone
@@ -941,9 +1359,20 @@ async fn download_concurrent(
 
     let mut next = start;
     let mut fetched = start;
+    let mut last_flushed = start;
     let started = Instant::now();
     let mut pending: BTreeMap<u64, Vec<u8>> = BTreeMap::new();
-    while let Some((offset, chunk)) = rx.recv().await {
+    loop {
+        // Receiving the next chunk races against shutdown so a Ctrl+C doesn't
+        // block on a stalled worker; anything already in the pipe is still
+        // flushed below so the `.part` prefix stays contiguous.
+        let (offset, chunk) = tokio::select! {
+            m = rx.recv() => match m {
+                Some(item) => item,
+                None => break,
+            },
+            _ = shutdown.cancelled() => break,
+        };
         fetched = (fetched + chunk.len() as u64).min(total);
         progress.pb.set_position(fetched);
         let elapsed = started.elapsed().as_secs_f64().max(0.001);
@@ -960,21 +1389,38 @@ async fn download_concurrent(
         while let Some(chunk) = pending.remove(&next) {
             file.write_all(&chunk).await?;
             next += chunk.len() as u64;
+            // Periodically record the contiguous write position so an
+            // interruption can resume here. The `.part` file is preallocated to
+            // `total`, so its size can't recover this point.
+            if next - last_flushed >= PROGRESS_FLUSH_BYTES {
+                write_progress(path, next).await;
+                last_flushed = next;
+            }
         }
     }
+    // Final flush: persist the full contiguous position (== `total` on success)
+    // so a later run can finalize without re-fetching.
+    write_progress(path, next).await;
 
     // Surface the first worker error (a chunk that exhausted its retries).
     let mut worker_err: Option<anyhow::Error> = None;
+    let mut cancelled = shutdown.is_cancelled();
     for task in tasks {
         match task.await {
             Ok(Ok(())) => {}
             Ok(Err(e)) if worker_err.is_none() => worker_err = Some(e),
             Ok(Err(_)) => {}
+            Err(e) if e.is_cancelled() => cancelled = true,
             Err(e) if worker_err.is_none() => {
                 worker_err = Some(anyhow::anyhow!("download worker join failed: {e}"))
             }
             Err(_) => {}
         }
+    }
+    if cancelled {
+        // Leave the contiguous prefix on disk for resume; report interruption
+        // so the caller keeps the `.part` file rather than deleting it.
+        return Err(anyhow::anyhow!("download interrupted"));
     }
     if let Some(e) = worker_err {
         return Err(e);
@@ -997,24 +1443,36 @@ async fn download_concurrent(
 /// requested (see grammers `files.rs`); a transient short read would otherwise
 /// end the stream and starve the rest of the fetch. Each chunk is also
 /// validated against its expected size so a short piece is never written.
+///
+/// The fetch and its retry backoff are both raced against `shutdown` so a
+/// Ctrl+C cancels the in-flight network read at once instead of waiting for
+/// it (or its backoff) to finish.
 async fn fetch_chunk(
     client: &Client,
     media: &Media,
     idx: u64,
     expected: u64,
+    shutdown: &Shutdown,
 ) -> anyhow::Result<Vec<u8>> {
     let mut backoff = 0u64;
     let mut last_err: Option<anyhow::Error> = None;
     for attempt in 0..CHUNK_RETRY_LIMIT {
+        if shutdown.is_cancelled() {
+            break;
+        }
         let delay = std::mem::take(&mut backoff);
-        if delay > 0 {
-            tokio::time::sleep(Duration::from_secs(delay)).await;
+        if delay > 0 && sleep_cancellable(shutdown, Duration::from_secs(delay)).await {
+            break;
         }
         let mut stream = client
             .iter_download(media)
             .chunk_size(DOWNLOAD_CHUNK_SIZE as i32)
             .skip_chunks(i32::try_from(idx)?);
-        match stream.next().await {
+        let result = tokio::select! {
+            r = stream.next() => r,
+            _ = shutdown.cancelled() => break,
+        };
+        match result {
             Ok(Some(chunk)) if chunk.len() as u64 == expected => return Ok(chunk),
             Ok(Some(chunk)) => {
                 warn!(
@@ -1049,31 +1507,68 @@ async fn fetch_chunk(
             }
         }
     }
+    if shutdown.is_cancelled() {
+        return Err(anyhow::anyhow!("download interrupted"));
+    }
     Err(last_err.unwrap_or_else(|| anyhow::anyhow!("chunk {idx} failed after retries")))
 }
 
-/// Resume offset for `temp_path`: the largest chunk-aligned length that does
-/// not exceed the current file size (any partial trailing chunk is trimmed).
-/// Returns 0 (and clears the file) if the temp is missing or larger than
-/// `total`, signalling a fresh download.
+/// Resume offset for `temp_path`: the byte position to continue downloading
+/// from. The `.part` file is preallocated to `total` up front, so its size does
+/// not reflect how much was actually fetched; the `.progress` sidecar (the
+/// contiguous byte count the writer flushed) is the source of truth. Returns
+/// `total` when the sidecar marks the file complete, the last flushed chunk
+/// boundary when partial, or 0 (clearing any stale sidecar) when the temp is
+/// missing.
 async fn resume_offset(temp_path: &Path, total: u64) -> anyhow::Result<u64> {
     let len = match tokio::fs::metadata(temp_path).await {
         Ok(m) => m.len(),
-        Err(_) => return Ok(0),
+        Err(_) => {
+            let _ = tokio::fs::remove_file(progress_path(temp_path)).await;
+            return Ok(0);
+        }
     };
-    if total > 0 && len > total {
-        tokio::fs::remove_file(temp_path).await.ok();
-        return Ok(0);
+    let valid = read_progress(temp_path).await;
+    if total > 0 && valid >= total {
+        return Ok(total);
     }
-    let aligned = len - (len % DOWNLOAD_CHUNK_SIZE);
-    if aligned != len {
-        let file = tokio::fs::OpenOptions::new()
-            .write(true)
-            .open(temp_path)
-            .await?;
-        file.set_len(aligned).await?;
+    // Partial: resume from the last flushed chunk boundary, clamped to the real
+    // file size so a stale sidecar can never make us skip data.
+    let aligned = valid - (valid % DOWNLOAD_CHUNK_SIZE);
+    Ok(aligned.min(len))
+}
+
+/// Path of the `.progress` sidecar recording how many contiguous bytes of
+/// `temp_path` have been fetched.
+fn progress_path(temp_path: &Path) -> PathBuf {
+    let mut p = temp_path.as_os_str().to_owned();
+    p.push(".progress");
+    PathBuf::from(p)
+}
+
+/// Read the recorded contiguous byte count, or 0 when the sidecar is missing or
+/// unreadable (treated as a fresh download).
+async fn read_progress(temp_path: &Path) -> u64 {
+    match tokio::fs::read(progress_path(temp_path)).await {
+        Ok(bytes) => String::from_utf8_lossy(&bytes)
+            .trim()
+            .parse::<u64>()
+            .unwrap_or(0),
+        Err(_) => 0,
     }
-    Ok(aligned)
+}
+
+/// Best-effort persist of the contiguous byte count. A failed write only means
+/// the next resume re-fetches a little more.
+async fn write_progress(temp_path: &Path, n: u64) {
+    let _ = tokio::fs::write(progress_path(temp_path), n.to_string().into_bytes()).await;
+}
+
+/// Drop a partial `.part` download and its sidecar so the next attempt starts
+/// fresh.
+async fn discard_partial(temp_path: &Path) {
+    let _ = tokio::fs::remove_file(temp_path).await;
+    let _ = tokio::fs::remove_file(progress_path(temp_path)).await;
 }
 
 /// Preallocate `size` bytes for `file`, preferring real block allocation
