@@ -6,6 +6,7 @@ mod webui;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use std::time::{Duration, Instant};
@@ -37,6 +38,7 @@ const RETRY_DELAY_SECS: u64 = 5;
 const DOWNLOAD_CHUNK_SIZE: u64 = 512 * 1024;
 const RESUME_WORKERS: u64 = 4;
 const MAX_AUTH_FLOOD_RETRIES: u32 = 3;
+const CHUNK_RETRY_LIMIT: u32 = 3;
 
 #[cfg(unix)]
 const SIGINT: i32 = 2;
@@ -47,6 +49,13 @@ const SIG_DFL: usize = 0;
 #[cfg(unix)]
 unsafe extern "C" {
     fn signal(signum: i32, handler: usize) -> usize;
+}
+
+#[cfg(target_os = "linux")]
+unsafe extern "C" {
+    // Returns 0 on success, errno on failure. Used to preallocate the download
+    // file so the NAS doesn't grow it extent-by-extent during chunked writes.
+    fn posix_fallocate(fd: i32, offset: i64, len: i64) -> i32;
 }
 
 /// Reset SIGINT to its default disposition so Ctrl+C terminates the process
@@ -738,35 +747,12 @@ async fn download_media_inner(
 
     tokio::fs::create_dir_all(temp_path.parent().unwrap_or(Path::new("."))).await?;
 
-    let mut existing = if temp_path.exists() {
-        tokio::fs::metadata(&temp_path)
-            .await
-            .map(|m| m.len())
-            .unwrap_or(0)
-    } else {
-        0
-    };
-
     let total = match &media {
         Media::Photo(p) => p.size().unwrap_or(0) as u64,
         Media::Document(d) => d.size().unwrap_or(0) as u64,
         _ => 0,
     };
-    if total > 0 && existing > total {
-        tokio::fs::remove_file(&temp_path).await.ok();
-        existing = 0;
-    }
-    if existing > 0 {
-        let aligned = existing - (existing % DOWNLOAD_CHUNK_SIZE);
-        if aligned != existing {
-            let file = tokio::fs::OpenOptions::new()
-                .write(true)
-                .open(&temp_path)
-                .await?;
-            file.set_len(aligned).await?;
-            existing = aligned;
-        }
-    }
+    let existing = resume_offset(&temp_path, total).await?;
     web_state
         .download_started(msg_id, &final_path, existing, total)
         .await;
@@ -778,6 +764,14 @@ async fn download_media_inner(
             info!("msg={msg_id}: retry {}/{}", attempt + 1, RETRY_LIMIT);
         }
 
+        // Re-evaluate the resume offset each attempt: a failed attempt leaves
+        // the valid prefix on disk, so we only re-fetch what is missing.
+        let downloaded = if attempt == 0 {
+            existing
+        } else {
+            resume_offset(&temp_path, total).await?
+        };
+
         let pb = mp.add(ProgressBar::new(total));
         pb.set_style(
             ProgressStyle::with_template(
@@ -787,18 +781,21 @@ async fn download_media_inner(
             .progress_chars("##-"),
         );
         pb.set_message(format!("{msg_id}"));
-
-        let downloaded = if attempt == 0 { existing } else { 0 };
         if downloaded > 0 {
             pb.set_position(downloaded);
-            info!("msg={msg_id}: resuming from {downloaded} bytes");
+            if attempt == 0 {
+                info!("msg={msg_id}: resuming from {downloaded} bytes");
+            }
         }
 
         if total == 0 {
             web_state.wait_if_paused().await;
             if let Err(e) = client.download_media(&media, &temp_path).await {
-                web_state.download_finished(msg_id, 0, false).await;
-                return Err(e.into());
+                last_err = Some(e.into());
+                pb.finish_and_clear();
+                drop(pb);
+                tokio::fs::remove_file(&temp_path).await.ok();
+                continue;
             }
             pb.set_position(total);
         } else if total > downloaded {
@@ -810,8 +807,13 @@ async fn download_media_inner(
             if let Err(e) =
                 download_concurrent(client, &media, &temp_path, downloaded, total, &progress).await
             {
-                web_state.download_finished(msg_id, 0, false).await;
-                return Err(e);
+                // Keep the partial file so the next attempt resumes; only the
+                // unfetched chunks need re-downloading.
+                warn!("msg={msg_id}: {e:#}");
+                last_err = Some(e);
+                pb.finish_and_clear();
+                drop(pb);
+                continue;
             }
         } else {
             pb.set_position(downloaded);
@@ -877,9 +879,15 @@ async fn download_concurrent(
     total: u64,
     progress: &DownloadProgress<'_>,
 ) -> anyhow::Result<()> {
-    let start_chunk = i32::try_from(start / DOWNLOAD_CHUNK_SIZE)?;
-    let workers = RESUME_WORKERS.min((total - start).div_ceil(DOWNLOAD_CHUNK_SIZE));
-    let (tx, mut rx) = unbounded_channel();
+    let chunk_size = DOWNLOAD_CHUNK_SIZE;
+    let start_chunk = start / chunk_size;
+    let total_chunks = total.div_ceil(chunk_size);
+    let workers = RESUME_WORKERS.min(total_chunks - start_chunk).max(1);
+
+    let (tx, mut rx) = unbounded_channel::<(u64, Vec<u8>)>();
+    // Set by the first worker to fail so its peers stop fetching after their
+    // current chunk instead of downloading data that will be discarded.
+    let abort = Arc::new(AtomicBool::new(false));
     let mut tasks = Vec::new();
 
     for worker in 0..workers {
@@ -887,28 +895,33 @@ async fn download_concurrent(
         let media = media.clone();
         let tx = tx.clone();
         let web_state = progress.web_state.clone();
-        let first_chunk = start_chunk + i32::try_from(worker)?;
+        let abort = abort.clone();
 
         tasks.push(tokio::spawn(async move {
-            let mut chunk_index = u64::try_from(first_chunk)?;
-            let mut stream = client
-                .iter_download(&media)
-                .chunk_size(DOWNLOAD_CHUNK_SIZE as i32)
-                .skip_chunks(first_chunk);
-
-            while chunk_index * DOWNLOAD_CHUNK_SIZE < total {
-                web_state.wait_if_paused().await;
-                let Some(chunk) = stream.next().await? else {
-                    break;
-                };
-                let offset = chunk_index * DOWNLOAD_CHUNK_SIZE;
-                if tx.send((offset, chunk)).is_err() {
+            // Striped assignment: this worker owns chunks worker, worker+n, ...
+            // Each chunk is fetched with its own stream so a short read (which
+            // ends grammers' stream early) only affects that one piece.
+            let mut idx = start_chunk + worker;
+            while idx < total_chunks {
+                if abort.load(Ordering::Relaxed) {
                     break;
                 }
-                chunk_index += workers;
-                stream = stream.skip_chunks(i32::try_from(workers - 1)?);
+                web_state.wait_if_paused().await;
+                let offset = idx * chunk_size;
+                let expected = (total - offset).min(chunk_size);
+                match fetch_chunk(&client, &media, idx, expected).await {
+                    Ok(chunk) => {
+                        if tx.send((offset, chunk)).is_err() {
+                            break; // receiver gone
+                        }
+                    }
+                    Err(e) => {
+                        abort.store(true, Ordering::Relaxed);
+                        return Err(e);
+                    }
+                }
+                idx += workers;
             }
-
             Ok::<(), anyhow::Error>(())
         }));
     }
@@ -917,15 +930,19 @@ async fn download_concurrent(
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
-        .truncate(false)
+        .truncate(start == 0)
         .open(path)
         .await?;
+    // Preallocate the full file up front. On a NAS this avoids growing the
+    // file extent-by-extent as chunks land, which fragments the layout and
+    // can stall writes. Falls back to a sparse truncate if unsupported.
+    preallocate(&file, total).await?;
     file.seek(std::io::SeekFrom::Start(start)).await?;
 
     let mut next = start;
     let mut fetched = start;
     let started = Instant::now();
-    let mut pending = BTreeMap::new();
+    let mut pending: BTreeMap<u64, Vec<u8>> = BTreeMap::new();
     while let Some((offset, chunk)) = rx.recv().await {
         fetched = (fetched + chunk.len() as u64).min(total);
         progress.pb.set_position(fetched);
@@ -946,11 +963,148 @@ async fn download_concurrent(
         }
     }
 
+    // Surface the first worker error (a chunk that exhausted its retries).
+    let mut worker_err: Option<anyhow::Error> = None;
     for task in tasks {
-        task.await??;
+        match task.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) if worker_err.is_none() => worker_err = Some(e),
+            Ok(Err(_)) => {}
+            Err(e) if worker_err.is_none() => {
+                worker_err = Some(anyhow::anyhow!("download worker join failed: {e}"))
+            }
+            Err(_) => {}
+        }
+    }
+    if let Some(e) = worker_err {
+        return Err(e);
+    }
+    // No worker errored, so every chunk must have been written contiguously.
+    // A gap here would indicate a logic bug rather than a network failure.
+    if next != total {
+        return Err(anyhow::anyhow!(
+            "incomplete download: wrote {next} of {total} bytes"
+        ));
     }
 
     Ok(())
+}
+
+/// Fetch a single chunk at index `idx`, retrying transient failures.
+///
+/// A fresh `iter_download` stream is used per attempt. This matters because
+/// grammers marks its stream done as soon as a read returns fewer bytes than
+/// requested (see grammers `files.rs`); a transient short read would otherwise
+/// end the stream and starve the rest of the fetch. Each chunk is also
+/// validated against its expected size so a short piece is never written.
+async fn fetch_chunk(
+    client: &Client,
+    media: &Media,
+    idx: u64,
+    expected: u64,
+) -> anyhow::Result<Vec<u8>> {
+    let mut backoff = 0u64;
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 0..CHUNK_RETRY_LIMIT {
+        let delay = std::mem::take(&mut backoff);
+        if delay > 0 {
+            tokio::time::sleep(Duration::from_secs(delay)).await;
+        }
+        let mut stream = client
+            .iter_download(media)
+            .chunk_size(DOWNLOAD_CHUNK_SIZE as i32)
+            .skip_chunks(i32::try_from(idx)?);
+        match stream.next().await {
+            Ok(Some(chunk)) if chunk.len() as u64 == expected => return Ok(chunk),
+            Ok(Some(chunk)) => {
+                warn!(
+                    "chunk {idx}: short read {} B (expected {expected}), retry {}/{}",
+                    chunk.len(),
+                    attempt + 1,
+                    CHUNK_RETRY_LIMIT
+                );
+                last_err = Some(anyhow::anyhow!(
+                    "chunk {idx} short: {} vs {expected} bytes",
+                    chunk.len()
+                ));
+                backoff = RETRY_DELAY_SECS;
+            }
+            Ok(None) => {
+                warn!(
+                    "chunk {idx}: stream ended early, retry {}/{}",
+                    attempt + 1,
+                    CHUNK_RETRY_LIMIT
+                );
+                last_err = Some(anyhow::anyhow!("chunk {idx} stream ended early"));
+                backoff = RETRY_DELAY_SECS;
+            }
+            Err(e) => {
+                backoff = flood_wait_secs(&e.to_string()).unwrap_or(RETRY_DELAY_SECS);
+                warn!(
+                    "chunk {idx}: fetch error: {e}; retry {}/{} in {backoff}s",
+                    attempt + 1,
+                    CHUNK_RETRY_LIMIT
+                );
+                last_err = Some(anyhow::anyhow!("chunk {idx}: {e}"));
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| anyhow::anyhow!("chunk {idx} failed after retries")))
+}
+
+/// Resume offset for `temp_path`: the largest chunk-aligned length that does
+/// not exceed the current file size (any partial trailing chunk is trimmed).
+/// Returns 0 (and clears the file) if the temp is missing or larger than
+/// `total`, signalling a fresh download.
+async fn resume_offset(temp_path: &Path, total: u64) -> anyhow::Result<u64> {
+    let len = match tokio::fs::metadata(temp_path).await {
+        Ok(m) => m.len(),
+        Err(_) => return Ok(0),
+    };
+    if total > 0 && len > total {
+        tokio::fs::remove_file(temp_path).await.ok();
+        return Ok(0);
+    }
+    let aligned = len - (len % DOWNLOAD_CHUNK_SIZE);
+    if aligned != len {
+        let file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .open(temp_path)
+            .await?;
+        file.set_len(aligned).await?;
+    }
+    Ok(aligned)
+}
+
+/// Preallocate `size` bytes for `file`, preferring real block allocation
+/// (`posix_fallocate`) so network-attached storage doesn't grow the file
+/// incrementally during chunked writes. Falls back to a sparse `set_len` when
+/// preallocation is unavailable (or on non-Linux hosts). No-op for `size == 0`.
+async fn preallocate(file: &tokio::fs::File, size: u64) -> anyhow::Result<()> {
+    if size == 0 {
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::io::AsRawFd;
+        let fd = file.as_raw_fd();
+        let len = i64::try_from(size)?;
+        // posix_fallocate is a blocking syscall; run it off the async thread.
+        let rc =
+            tokio::task::spawn_blocking(move || unsafe { posix_fallocate(fd, 0, len) }).await?;
+        if rc == 0 {
+            return Ok(());
+        }
+        // ENOTSUP (e.g. over NFS) / EDQUOT / etc.: fall back to a sparse truncate.
+        file.set_len(size).await?;
+        return Ok(());
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        // No portable fallocate here; reserve the size sparsely instead.
+        file.set_len(size).await?;
+        Ok(())
+    }
 }
 
 /// Returns (temp_path, final_path) for a media download.
