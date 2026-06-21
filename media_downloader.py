@@ -378,8 +378,7 @@ async def download_media(
             break
     except Exception as e:
         logger.error(
-            f"Message[{message.id}]: "
-            f"could not be downloaded due to following exception:\n[{e}].",
+            f"Message[{message.id}]: could not be downloaded due to following exception:\n[{e}].",
             exc_info=True,
         )
         return DownloadStatus.FailedDownload, None
@@ -638,8 +637,7 @@ def main():
         logger.info("update config......")
         app.update_config()
         logger.success(
-            "Updated last read message_id to config file, "
-            f"total download {app.total_download_task}"
+            f"Updated last read message_id to config file, total download {app.total_download_task}"
         )
 
 

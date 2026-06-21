@@ -120,9 +120,7 @@ def get_download_list():
                         "id": str(idx),
                         "filename": os.path.basename(value["file_name"]),
                         "total_size": format_byte(total),
-                        "download_progress": round(
-                            value["down_byte"] / total * 100, 1
-                        ),
+                        "download_progress": round(value["down_byte"] / total * 100, 1),
                         "download_speed": format_byte(value["download_speed"]) + "/s",
                         "save_path": value["file_name"].replace("\\", "/"),
                     }
