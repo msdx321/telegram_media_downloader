@@ -109,7 +109,7 @@ def get_download_list():
         for chat_id, messages in get_download_result().items():
             for idx, value in list(messages.items()):
                 is_already_down = value["down_byte"] == value["total_size"]
-                if already_down and not is_already_down:
+                if already_down != is_already_down:
                     continue
                 raw.append(
                     {
