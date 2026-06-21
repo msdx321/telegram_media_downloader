@@ -63,12 +63,12 @@ def _check_download_finish(media_size: int, download_path: str, ui_file_name: st
     """
     download_size = os.path.getsize(download_path)
     if media_size == download_size:
-        logger.success(f"{'Successfully downloaded'} - {ui_file_name}")
+        logger.success(f"Successfully downloaded - {ui_file_name}")
     else:
         logger.warning(
-            f"{'Media downloaded with wrong size'}: "
-            f"{download_size}, {'actual'}: "
-            f"{media_size}, {'file name'}: {ui_file_name}"
+            "Media downloaded with wrong size: "
+            f"{download_size}, actual: "
+            f"{media_size}, file name: {ui_file_name}"
         )
         os.remove(download_path)
         raise pyrogram.errors.exceptions.bad_request_400.BadRequest()  # ty:ignore[possibly-missing-submodule]
@@ -368,7 +368,7 @@ async def download_media(
                     if file_size or file_size == media_size:
                         logger.info(
                             f"id={message.id} {ui_file_name} "
-                            f"{'already downloaded, download skipped'}.\n"
+                            "already downloaded, download skipped.\n"
                         )
 
                         return DownloadStatus.SkipDownload, None
@@ -379,7 +379,7 @@ async def download_media(
     except Exception as e:
         logger.error(
             f"Message[{message.id}]: "
-            f"{'could not be downloaded due to following exception'}:\n[{e}].",
+            f"could not be downloaded due to following exception:\n[{e}].",
             exc_info=True,
         )
         return DownloadStatus.FailedDownload, None
@@ -411,13 +411,13 @@ async def download_media(
                     app.mark_file_downloaded(file_unique_id)
                 return DownloadStatus.SuccessDownload, file_name
         except pyrogram.errors.exceptions.bad_request_400.BadRequest:  # ty:ignore[possibly-missing-submodule]
-            logger.warning(f"Message[{message.id}]: {'file reference expired, refetching'}...")
+            logger.warning(f"Message[{message.id}]: file reference expired, refetching...")
             await asyncio.sleep(RETRY_TIME_OUT)
             message = await fetch_message(client, message)
             if _check_timeout(retry):
                 logger.error(
                     f"Message[{message.id}]: "
-                    f"{'file reference expired for 3 retries, download skipped.'}"
+                    "file reference expired for 3 retries, download skipped."
                 )
         except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:  # ty:ignore[possibly-missing-submodule]
             await asyncio.sleep(wait_err.value)
@@ -425,18 +425,18 @@ async def download_media(
             _check_timeout(retry)
         except TypeError:
             logger.warning(
-                f"{'Timeout Error occurred when downloading Message'}[{message.id}], "
-                f"{'retrying after'} {RETRY_TIME_OUT} {'seconds'}"
+                f"Timeout Error occurred when downloading Message[{message.id}], "
+                f"retrying after {RETRY_TIME_OUT} seconds"
             )
             await asyncio.sleep(RETRY_TIME_OUT)
             if _check_timeout(retry):
                 logger.error(
-                    f"Message[{message.id}]: {'Timing out after 3 retries, download skipped.'}"
+                    f"Message[{message.id}]: Timing out after 3 retries, download skipped."
                 )
         except Exception as e:
             logger.error(
                 f"Message[{message.id}]: "
-                f"{'could not be downloaded due to following exception'}:\n[{e}].",
+                f"could not be downloaded due to following exception:\n[{e}].",
                 exc_info=True,
             )
             break
@@ -512,7 +512,7 @@ async def download_chat_task(
     chat_download_config.node = node
 
     if chat_download_config.ids_to_retry:
-        logger.info(f"{'Downloading files failed during last run'}...")
+        logger.info("Downloading files failed during last run...")
         skipped_messages: list = await client.get_messages(  # type: ignore
             chat_id=node.chat_id, message_ids=chat_download_config.ids_to_retry
         )
@@ -567,7 +567,7 @@ async def run_until_all_task_finish():
 
         if finish:
             # All chats up-to-date — wait, then re-scan
-            logger.info(f"{'All chats up to date, re-checking in 10 minutes'}...")
+            logger.info("All chats up to date, re-checking in 10 minutes...")
             await asyncio.sleep(600)  # ponytail: 10 min poll interval
             for _, value in app.chat_download_config.items():
                 value.need_check = False
@@ -635,11 +635,11 @@ def main():
             task.cancel()
         logger.info("Stopped!")
         # check_for_updates(app.proxy)
-        logger.info(f"{'update config'}......")
+        logger.info("update config......")
         app.update_config()
         logger.success(
-            f"{'Updated last read message_id to config file'}, "
-            f"{'total download'} {app.total_download_task}"
+            "Updated last read message_id to config file, "
+            f"total download {app.total_download_task}"
         )
 
 

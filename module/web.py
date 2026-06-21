@@ -108,7 +108,10 @@ def get_download_list():
         raw = []
         for chat_id, messages in get_download_result().items():
             for idx, value in list(messages.items()):
-                is_already_down = value["down_byte"] == value["total_size"]
+                total = value["total_size"]
+                if total <= 0:
+                    continue  # unknown size, skip from both lists
+                is_already_down = value["down_byte"] == total
                 if already_down != is_already_down:
                     continue
                 raw.append(
@@ -116,9 +119,9 @@ def get_download_list():
                         "chat": str(chat_id),
                         "id": str(idx),
                         "filename": os.path.basename(value["file_name"]),
-                        "total_size": format_byte(value["total_size"]),
+                        "total_size": format_byte(total),
                         "download_progress": round(
-                            value["down_byte"] / value["total_size"] * 100, 1
+                            value["down_byte"] / total * 100, 1
                         ),
                         "download_speed": format_byte(value["download_speed"]) + "/s",
                         "save_path": value["file_name"].replace("\\", "/"),
