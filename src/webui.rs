@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::State;
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -13,7 +13,7 @@ use axum::Router;
 use log::{info, warn};
 use serde::Serialize;
 use tokio::net::TcpListener;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, watch, Mutex};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::{once, StreamExt};
 
@@ -21,9 +21,12 @@ use crate::format::format_byte;
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
 const APP_CSS: &str = include_str!("../static/app.css");
+const PROGRESS_UPDATE_MS: u64 = 2000;
 
 pub struct WebState {
     paused: AtomicBool,
+    last_progress_publish_ms: AtomicU64,
+    pause_tx: watch::Sender<bool>,
     status: Mutex<String>,
     stats: Mutex<DashboardStats>,
     updates: broadcast::Sender<String>,
@@ -69,8 +72,11 @@ struct DownloadSnapshot {
 impl WebState {
     pub fn new() -> Self {
         let (updates, _) = broadcast::channel(64);
+        let (pause_tx, _) = watch::channel(false);
         Self {
             paused: AtomicBool::new(false),
+            last_progress_publish_ms: AtomicU64::new(0),
+            pause_tx,
             status: Mutex::new("starting".to_string()),
             stats: Mutex::new(DashboardStats::default()),
             updates,
@@ -79,12 +85,18 @@ impl WebState {
 
     pub async fn set_status(&self, status: &str) {
         *self.status.lock().await = status.to_string();
-        self.publish().await;
+        self.publish_immediate().await;
     }
 
     pub async fn wait_if_paused(&self) {
+        if !self.paused.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut pause_rx = self.pause_tx.subscribe();
         while self.paused.load(Ordering::Relaxed) {
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            if pause_rx.changed().await.is_err() {
+                break;
+            }
         }
     }
 
@@ -104,7 +116,7 @@ impl WebState {
             },
         );
         drop(stats);
-        self.publish().await;
+        self.publish_immediate().await;
     }
 
     pub async fn download_progress(&self, msg_id: i32, downloaded: u64, speed_bps: u64) {
@@ -112,7 +124,7 @@ impl WebState {
             item.downloaded = downloaded;
             item.speed_bps = speed_bps;
         }
-        self.publish().await;
+        self.publish_progress().await;
     }
 
     pub async fn download_finished(&self, msg_id: i32, bytes: u64, completed: bool) {
@@ -123,11 +135,12 @@ impl WebState {
             stats.downloaded_bytes += bytes;
         }
         drop(stats);
-        self.publish().await;
+        self.publish_immediate().await;
     }
 
     async fn set_paused(&self, paused: bool) {
         self.paused.store(paused, Ordering::Relaxed);
+        let _ = self.pause_tx.send(paused);
         self.set_status(if paused { "paused" } else { "running" })
             .await;
     }
@@ -136,7 +149,34 @@ impl WebState {
         self.updates.subscribe()
     }
 
+    async fn publish_immediate(&self) {
+        self.publish().await;
+    }
+
+    async fn publish_progress(&self) {
+        let now = now_millis();
+        let mut last = self.last_progress_publish_ms.load(Ordering::Relaxed);
+        loop {
+            if now.saturating_sub(last) < PROGRESS_UPDATE_MS {
+                return;
+            }
+            match self.last_progress_publish_ms.compare_exchange_weak(
+                last,
+                now,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(observed) => last = observed,
+            }
+        }
+        self.publish().await;
+    }
+
     async fn publish(&self) {
+        if self.updates.receiver_count() == 0 {
+            return;
+        }
         let _ = self.updates.send(self.snapshot_json().await);
     }
 
@@ -177,6 +217,13 @@ impl WebState {
             active,
         }
     }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 pub async fn run(state: Arc<WebState>, host: String, port: u16) {

@@ -38,6 +38,16 @@ pub enum Value {
     Bool(bool),
 }
 
+pub trait VarLookup {
+    fn get_var(&self, name: &str) -> Option<Value>;
+}
+
+impl VarLookup for HashMap<String, Value> {
+    fn get_var(&self, name: &str) -> Option<Value> {
+        self.get(name).cloned()
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -298,19 +308,18 @@ impl<'a> Iterator for Lexer<'a> {
 
 // ── Parser ───────────────────────────────────────────────────────────────
 
-pub struct Parser<'a> {
+#[derive(Clone)]
+pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
-    _input: &'a str,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(input: &'a str) -> Self {
+impl Parser {
+    pub fn new(input: &str) -> Self {
         let lexer = Lexer::new(input);
         Self {
             tokens: lexer.collect(),
             pos: 0,
-            _input: input,
         }
     }
 
@@ -334,7 +343,7 @@ impl<'a> Parser<'a> {
 
     // ── expression parsing (Pratt-style) ─────────────────────────────────
 
-    pub fn parse(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    pub fn parse(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let val = self.or_expr(vars)?;
         if !matches!(self.peek(), Token::Eof) {
             return Err(format!(
@@ -345,7 +354,7 @@ impl<'a> Parser<'a> {
         Ok(val)
     }
 
-    fn or_expr(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn or_expr(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let mut left = self.and_expr(vars)?;
         while matches!(self.peek(), Token::Or) {
             self.advance();
@@ -355,7 +364,7 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn and_expr(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn and_expr(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let mut left = self.comp(vars)?;
         while matches!(self.peek(), Token::And) {
             self.advance();
@@ -365,7 +374,7 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn comp(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn comp(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let left = self.add(vars)?;
         match self.peek() {
             Token::Eq | Token::Ne | Token::Gt | Token::Lt | Token::Ge | Token::Le => {
@@ -377,7 +386,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn add(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn add(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let mut left = self.mul(vars)?;
         loop {
             match self.peek() {
@@ -395,7 +404,7 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn mul(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn mul(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let mut left = self.unary(vars)?;
         loop {
             match self.peek() {
@@ -413,7 +422,7 @@ impl<'a> Parser<'a> {
         Ok(left)
     }
 
-    fn unary(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn unary(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         if matches!(self.peek(), Token::Minus) {
             self.advance();
             let val = self.unary(vars)?;
@@ -426,7 +435,7 @@ impl<'a> Parser<'a> {
         self.primary(vars)
     }
 
-    fn primary(&mut self, vars: &HashMap<String, Value>) -> Result<Value, String> {
+    fn primary(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         match self.peek() {
             Token::Num(n) => {
                 let v = *n;
@@ -455,8 +464,7 @@ impl<'a> Parser<'a> {
             Token::Name(name) => {
                 let n = name.clone();
                 self.advance();
-                vars.get(&n)
-                    .cloned()
+                vars.get_var(&n)
                     .ok_or_else(|| format!("undefined variable: {n}"))
             }
             Token::LParen => {

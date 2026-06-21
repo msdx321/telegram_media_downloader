@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use std::time::{Duration, Instant};
 
@@ -18,14 +18,14 @@ use grammers_mtsender::SenderPool;
 use grammers_session::storages::SqliteSession;
 use log::{debug, error, info, warn};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::mpsc;
 use tokio::sync::{Mutex, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use crate::config::{
     load_app_data, load_config, save_app_data, save_config, ChatConfig, ChatData, Config,
 };
-use crate::filter::{Parser, Value};
+use crate::filter::{Parser, Value, VarLookup};
 use crate::format::{format_byte, replace_date_time, truncate_filename, validate_title};
 use crate::webui::WebState;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -43,6 +43,14 @@ const CHUNK_RETRY_LIMIT: u32 = 3;
 /// Minimum bytes between `.progress` sidecar flushes, bounding how much
 /// progress an interruption can lose.
 const PROGRESS_FLUSH_BYTES: u64 = 16 * 1024 * 1024;
+
+static DOWNLOAD_PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::with_template(
+        "{msg:>8} {wide_bar:.cyan/blue} {bytes:>8}/{total_bytes:8} {bytes_per_sec:>10} {eta}",
+    )
+    .unwrap_or_else(|_| ProgressStyle::default_bar())
+    .progress_chars("##-")
+});
 
 #[cfg(target_os = "linux")]
 unsafe extern "C" {
@@ -851,7 +859,7 @@ async fn save_text_message(
     tokio::fs::create_dir_all(&dir).await?;
 
     let file_path = dir.join(format!("{}.txt", msg.id()));
-    if file_path.exists() {
+    if tokio::fs::try_exists(&file_path).await? {
         return Ok(());
     }
 
@@ -870,10 +878,11 @@ fn build_filter_fn(
         Some(fs) => replace_date_time(fs, &cfg.date_format),
         None => return Box::new(|_| true),
     };
+    let parser = Parser::new(&filter_str);
 
     Box::new(move |msg| {
-        let vars = build_meta_vars(msg);
-        let mut parser = Parser::new(&filter_str);
+        let vars = MessageVars(msg);
+        let mut parser = parser.clone();
         match parser.parse(&vars) {
             Ok(Value::Bool(b)) => b,
             Ok(_) => false,
@@ -885,87 +894,81 @@ fn build_filter_fn(
     })
 }
 
-fn build_meta_vars(msg: &grammers_client::message::Message) -> HashMap<String, Value> {
-    let mut vars = HashMap::new();
+struct MessageVars<'a>(&'a grammers_client::message::Message);
 
-    let date = msg.date().naive_utc();
-    vars.insert("message_date".into(), Value::DateTime(date));
-    vars.insert("message_id".into(), Value::Int(msg.id() as i64));
-    vars.insert("id".into(), Value::Int(msg.id() as i64));
-
-    // Seed all filter-relevant fields with defaults so expressions like
-    // "media_duration >= 60" work for photos (return false) instead of
-    // failing with "undefined variable".
-    vars.insert("message_caption".into(), Value::Str(String::new()));
-    vars.insert("caption".into(), Value::Str(String::new()));
-    vars.insert("sender_name".into(), Value::Str(String::new()));
-    vars.insert("sender_id".into(), Value::Int(0));
-    vars.insert("reply_to_message_id".into(), Value::Int(0));
-    vars.insert("message_thread_id".into(), Value::Int(0));
-    vars.insert("topic_id".into(), Value::Int(0));
-    vars.insert("media_type".into(), Value::Str(String::new()));
-    vars.insert("file_extension".into(), Value::Str(String::new()));
-    vars.insert("media_file_name".into(), Value::Str(String::new()));
-    vars.insert("file_name".into(), Value::Str(String::new()));
-    vars.insert("media_file_size".into(), Value::Int(0));
-    vars.insert("file_size".into(), Value::Int(0));
-    vars.insert("media_duration".into(), Value::Int(0));
-    vars.insert("media_width".into(), Value::Int(0));
-    vars.insert("media_height".into(), Value::Int(0));
-
-    let txt = msg.text();
-    if !txt.is_empty() {
-        vars.insert("message_caption".into(), Value::Str(txt.to_string()));
-        vars.insert("caption".into(), Value::Str(txt.to_string()));
+impl VarLookup for MessageVars<'_> {
+    fn get_var(&self, name: &str) -> Option<Value> {
+        let msg = self.0;
+        Some(match name {
+            "message_date" => Value::DateTime(msg.date().naive_utc()),
+            "message_id" | "id" => Value::Int(msg.id() as i64),
+            "message_caption" | "caption" => Value::Str(msg.text().to_string()),
+            "sender_name" => Value::Str(
+                msg.peer()
+                    .and_then(|p| p.name())
+                    .map(str::to_string)
+                    .unwrap_or_default(),
+            ),
+            "sender_id" | "message_thread_id" | "topic_id" => Value::Int(0),
+            "reply_to_message_id" => Value::Int(msg.reply_to_message_id().unwrap_or(0) as i64),
+            "media_type" => Value::Str(media_type_value(msg)),
+            "file_extension" => Value::Str(file_extension_value(msg)),
+            "media_file_name" | "file_name" => Value::Str(media_file_name_value(msg)),
+            "media_file_size" | "file_size" => Value::Int(media_file_size_value(msg)),
+            "media_duration" => Value::Int(media_duration_value(msg)),
+            "media_width" => Value::Int(media_resolution_value(msg).0),
+            "media_height" => Value::Int(media_resolution_value(msg).1),
+            _ => return None,
+        })
     }
+}
 
-    if let Some(p) = msg.peer() {
-        if let Some(name) = p.name() {
-            vars.insert("sender_name".into(), Value::Str(name.to_string()));
-        }
+fn media_type_value(msg: &grammers_client::message::Message) -> String {
+    match msg.media() {
+        Some(Media::Photo(_)) => "photo".into(),
+        Some(Media::Document(_)) => "document".into(),
+        _ => String::new(),
     }
+}
 
-    if let Some(rid) = msg.reply_to_message_id() {
-        vars.insert("reply_to_message_id".into(), Value::Int(rid as i64));
+fn file_extension_value(msg: &grammers_client::message::Message) -> String {
+    match msg.media() {
+        Some(Media::Photo(_)) => "jpg".into(),
+        Some(Media::Document(doc)) => mime_to_ext(doc.mime_type().unwrap_or("")).into(),
+        _ => String::new(),
     }
+}
 
-    if let Some(ref media) = msg.media() {
-        match media {
-            Media::Photo(photo) => {
-                vars.insert("media_type".into(), Value::Str("photo".into()));
-                vars.insert("file_extension".into(), Value::Str("jpg".into()));
-                if let Some(s) = photo.size() {
-                    vars.insert("media_file_size".into(), Value::Int(s as i64));
-                    vars.insert("file_size".into(), Value::Int(s as i64));
-                }
-            }
-            Media::Document(doc) => {
-                let mime = doc.mime_type().unwrap_or("");
-                let ext = mime_to_ext(mime);
-                vars.insert("media_type".into(), Value::Str("document".into()));
-                vars.insert("file_extension".into(), Value::Str(ext.to_string()));
-
-                if let Some(name) = doc.name() {
-                    vars.insert("media_file_name".into(), Value::Str(name.to_string()));
-                    vars.insert("file_name".into(), Value::Str(name.to_string()));
-                }
-                if let Some(sz) = doc.size() {
-                    vars.insert("media_file_size".into(), Value::Int(sz as i64));
-                    vars.insert("file_size".into(), Value::Int(sz as i64));
-                }
-                if let Some(dur) = doc.duration() {
-                    vars.insert("media_duration".into(), Value::Int(dur as i64));
-                }
-                if let Some(res) = doc.resolution() {
-                    vars.insert("media_width".into(), Value::Int(res.0 as i64));
-                    vars.insert("media_height".into(), Value::Int(res.1 as i64));
-                }
-            }
-            _ => {}
-        }
+fn media_file_name_value(msg: &grammers_client::message::Message) -> String {
+    match msg.media() {
+        Some(Media::Document(doc)) => doc.name().map(str::to_string).unwrap_or_default(),
+        _ => String::new(),
     }
+}
 
-    vars
+fn media_file_size_value(msg: &grammers_client::message::Message) -> i64 {
+    match msg.media() {
+        Some(Media::Photo(photo)) => photo.size().unwrap_or(0) as i64,
+        Some(Media::Document(doc)) => doc.size().unwrap_or(0) as i64,
+        _ => 0,
+    }
+}
+
+fn media_duration_value(msg: &grammers_client::message::Message) -> i64 {
+    match msg.media() {
+        Some(Media::Document(doc)) => doc.duration().unwrap_or(0.0) as i64,
+        _ => 0,
+    }
+}
+
+fn media_resolution_value(msg: &grammers_client::message::Message) -> (i64, i64) {
+    match msg.media() {
+        Some(Media::Document(doc)) => doc
+            .resolution()
+            .map(|(width, height)| (width as i64, height as i64))
+            .unwrap_or((0, 0)),
+        _ => (0, 0),
+    }
 }
 
 fn mime_to_ext(mime: &str) -> &str {
@@ -1068,7 +1071,7 @@ async fn download_media_inner(
     let (temp_path, final_path) = build_media_paths(msg, &media, cfg)?;
 
     // Already fully downloaded?
-    if final_path.exists() {
+    if tokio::fs::try_exists(&final_path).await? {
         debug!("msg={msg_id}: file already exists, skipped");
         let mut cache = file_ids.lock().await;
         if !fid.is_empty() {
@@ -1144,13 +1147,7 @@ async fn download_media_inner(
         };
 
         let pb = mp.add(ProgressBar::new(total));
-        pb.set_style(
-            ProgressStyle::with_template(
-                "{msg:>8} {wide_bar:.cyan/blue} {bytes:>8}/{total_bytes:8} {bytes_per_sec:>10} {eta}"
-            )
-            .unwrap_or_else(|_| ProgressStyle::default_bar())
-            .progress_chars("##-"),
-        );
+        pb.set_style(DOWNLOAD_PROGRESS_STYLE.clone());
         pb.set_message(format!("{msg_id}"));
         if downloaded > 0 {
             pb.set_position(downloaded);
@@ -1285,6 +1282,23 @@ struct DownloadProgress<'a> {
     msg_id: i32,
 }
 
+async fn send_chunk(
+    tx: &mpsc::Sender<(u64, Vec<u8>)>,
+    chunk: (u64, Vec<u8>),
+    shutdown: &Shutdown,
+) -> Result<(), mpsc::error::SendError<(u64, Vec<u8>)>> {
+    tokio::select! {
+        permit = tx.reserve() => match permit {
+            Ok(permit) => {
+                permit.send(chunk);
+                Ok(())
+            }
+            Err(_) => Err(mpsc::error::SendError(chunk)),
+        },
+        _ = shutdown.cancelled() => Err(mpsc::error::SendError(chunk)),
+    }
+}
+
 async fn download_concurrent(
     client: &Client,
     media: &Media,
@@ -1299,7 +1313,7 @@ async fn download_concurrent(
     let total_chunks = total.div_ceil(chunk_size);
     let workers = RESUME_WORKERS.min(total_chunks - start_chunk).max(1);
 
-    let (tx, mut rx) = unbounded_channel::<(u64, Vec<u8>)>();
+    let (tx, mut rx) = mpsc::channel::<(u64, Vec<u8>)>((workers as usize).max(1));
     // Set by the first worker to fail so its peers stop fetching after their
     // current chunk instead of downloading data that will be discarded.
     let abort = Arc::new(AtomicBool::new(false));
@@ -1329,8 +1343,8 @@ async fn download_concurrent(
                 let expected = (total - offset).min(chunk_size);
                 match fetch_chunk(&client, &media, idx, expected, &shutdown).await {
                     Ok(chunk) => {
-                        if tx.send((offset, chunk)).is_err() {
-                            break; // receiver gone
+                        if send_chunk(&tx, (offset, chunk), &shutdown).await.is_err() {
+                            break; // receiver gone or shutdown requested
                         }
                     }
                     Err(e) => {
