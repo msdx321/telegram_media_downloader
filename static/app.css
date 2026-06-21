@@ -1,0 +1,56 @@
+body {
+  padding-block: 2rem;
+}
+
+.topbar {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.topbar button {
+  width: auto;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.downloads {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.download-card {
+  margin: 0;
+}
+
+.download-head,
+.download-meta {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.file,
+.path {
+  overflow-wrap: anywhere;
+}
+
+progress {
+  margin-block: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .topbar,
+  .download-head,
+  .download-meta {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}

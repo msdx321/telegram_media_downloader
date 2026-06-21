@@ -1,26 +1,34 @@
-FROM python:3.11.9-alpine AS compile-image
+# ── builder: compile the release binary ───────────────────────────────────
+FROM rust:1-bookworm AS builder
 
 WORKDIR /app
 
-# Build deps for pip packages that need compilation
-RUN apk add --no-cache --virtual .build-deps gcc musl-dev
+# Cache dependencies: build a throwaway library crate first so the expensive
+# dep tree (grammers, tokio, axum, ...) is reused unless Cargo.toml/Cargo.lock
+# change. Using a library (not a bin) means there is no stale `tmd` binary
+# fingerprint to confuse cargo when the real source is overlaid next.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src \
+    && echo '' > src/lib.rs \
+    && cargo build --release --locked \
+    && rm -rf src
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY src ./src
+COPY static ./static
+RUN cargo build --release --locked
 
-# Install python deps (requirements.txt generated via: uv export --no-dev --no-hashes)
-COPY pyproject.toml requirements.txt ./
-RUN grep -v '^-e \.' requirements.txt | uv pip install --system --no-cache -r /dev/stdin
-
-
-FROM python:3.11.9-alpine AS runtime-image
+# ── runtime: minimal image with just the binary ──────────────────────────
+FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
 
-# Copy installed deps from build stage
-COPY --from=compile-image /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy app source code
-COPY . /app
+COPY --from=builder /app/target/release/tmd /usr/local/bin/tmd
 
-CMD ["python", "media_downloader.py"]
+# downloads/, sessions/, config.yaml, and data.yaml live under /app.
+VOLUME ["/app"]
+
+CMD ["tmd"]

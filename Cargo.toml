@@ -1,0 +1,32 @@
+[package]
+name = "tmd"
+version = "0.1.0"
+edition = "2021"
+authors = ["msdx321 <msdx321@gmail.com>", "tangyoha <tangyoha@outlook.com>"]
+description = "Telegram Media Downloader — native Rust port"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+indicatif = "0.17"
+grammers-client = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-client", features = ["fs", "proxy"] }
+grammers-session = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-session" }
+grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-mtsender" }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+colored = "3"
+axum = "0.8.9"
+serde_json = "1.0.150"
+tokio-stream = { version = "0.1.18", features = ["sync"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true

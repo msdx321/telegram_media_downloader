@@ -12,24 +12,24 @@ on:
 
 jobs:
   lint:
-    name: Lint & Type Check
+    name: Rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.11"
+          components: rustfmt, clippy
 
-      - name: Install dependencies
-        run: uv sync
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
-      - name: Ruff lint
-        run: uv run ruff check .
+      - name: Format check
+        run: cargo fmt --check
 
-      - name: Ruff format check
-        run: uv run ruff format --check .
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Ty type check
-        run: uv run ty check media_downloader.py utils module
+      - name: Test
+        run: cargo test --all-targets --all-features

@@ -1,29 +1,21 @@
-TEST_ARTIFACTS ?= /tmp/coverage
+.PHONY: build run lint format style_check test docker
 
-.PHONY: install dev_install lint format type_check test
+build:
+	cargo build --release
 
-install:
-	uv sync --no-dev
-
-dev_install:
-	uv sync
+run:
+	cargo run --release
 
 lint:
-	uv run ruff check .
+	cargo clippy --all-targets --all-features -- -D warnings
 
 format:
-	uv run ruff format --check .
+	cargo fmt --check
 
-type_check:
-	uv run ty check media_downloader.py utils module
-
-style_check: lint format type_check
+style_check: lint format
 
 test:
-	uv run pytest \
-		--cov media_downloader \
-		--cov utils \
-		--cov-report term-missing \
-		--cov-report html:${TEST_ARTIFACTS} \
-		--junit-xml=${TEST_ARTIFACTS}/media-downloader.xml \
-		tests/
+	cargo test --all-targets --all-features
+
+docker:
+	docker build -t tmd-rs .

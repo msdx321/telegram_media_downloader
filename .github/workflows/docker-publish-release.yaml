@@ -1,91 +1,54 @@
-name: Create Release and Upload Assets
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
+
+permissions:
+  contents: write
 
 jobs:
-  build-tdl-binaries:
-    name: Build tdl binaries
+  build:
+    name: Build release binary
     runs-on: ubuntu-latest
-    env:
-      DISTPATH: tdl-linux-amd64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.11"
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: uv sync
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
-      - name: Install pyinstaller
-        run: uv pip install --system pyinstaller==6.7.0
+      - name: Build
+        run: cargo build --release --locked
 
-      - name: Build with PyInstaller
+      - name: Package
         run: |
-          pyinstaller --distpath ./${{ env.DISTPATH }} media_downloader.spec
+          mkdir -p dist
+          cp target/release/tmd README.md LICENSE dist/
+          (cd dist && zip -r "../tmd-${{ github.ref_name }}-linux-amd64.zip" .)
 
-      - name: Add license and readme
-        run: mv README_CN.md README.md ./${{ env.DISTPATH }}
-
-      - name: Archive artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.DISTPATH }}
-          path: ${{ env.DISTPATH }}
+          name: tmd-linux-amd64
+          path: tmd-${{ github.ref_name }}-linux-amd64.zip
 
-  create_release:
-    name: Create GitHub release
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: build-tdl-binaries
+  release:
+    name: Publish GitHub release
+    needs: build
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      VERSION: ${{ steps.get_version.outputs.VERSION }}
     steps:
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: false
-          prerelease: false
-
-      - name: Get version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        shell: bash
-
-  upload_assets:
-    name: Upload release assets
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: create_release
-    runs-on: ubuntu-latest
-    env:
-      DISTPATH: tdl-${{ needs.create_release.outputs.VERSION }}-linux-amd64
-    steps:
-      - name: Download built binaries
+      - name: Download built binary
         uses: actions/download-artifact@v4
-
-      - name: Rename and package binaries
-        run: |
-          zip -r ${{ env.DISTPATH }}.zip ./tdl-linux-amd64/*
-
-      - name: Upload release assets
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: "${{ env.DISTPATH }}.zip"
-          asset_name: "${{ env.DISTPATH }}.zip"
-          asset_content_type: application/zip
+          name: tmd-linux-amd64
+          path: dist
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/tmd-${{ github.ref_name }}-linux-amd64.zip
+          generate_release_notes: true

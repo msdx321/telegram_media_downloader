@@ -1,25 +1,30 @@
+# VCS / CI / editor
 .git
 .github
-.venv
 .vscode
+.idea
 .claude
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
+
+# Rust build artifacts
+target/
+
+# Runtime data and secrets (never bake into the image)
 downloads/
 log/
 sessions/
-temp/
-tests/
-example/
-Makefile
-docker-compose.yaml
+config.yaml
+data.yaml
+*.session
+*.session-journal
+*.db
+*.env
+
+# Docker
 Dockerfile
-.pre-commit-config.yaml
-codecov.yml
-LICENSE
+.dockerignore
+docker-compose.yaml
+
+# Examples and docs
+example/
+README.md
+README_CN.md

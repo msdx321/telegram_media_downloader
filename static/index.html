@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram Media Downloader</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="container">
+    <header class="topbar">
+      <div>
+        <h1>Telegram Media Downloader</h1>
+        <p>Status: <strong id="status">starting</strong></p>
+      </div>
+      <button id="pause-toggle" class="contrast" type="button">Pause</button>
+    </header>
+
+    <section class="stats-grid">
+      <article><strong id="downloaded-files">0</strong><br><small>Downloaded files</small></article>
+      <article><strong id="downloaded-bytes">0 B</strong><br><small>Downloaded size</small></article>
+      <article><strong id="active-count">0</strong><br><small>Active downloads</small></article>
+    </section>
+
+    <section>
+      <h2>Active Downloads</h2>
+      <div id="downloads" class="downloads">
+        <p>No active downloads</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = document.querySelector("#status");
+    const filesEl = document.querySelector("#downloaded-files");
+    const bytesEl = document.querySelector("#downloaded-bytes");
+    const activeEl = document.querySelector("#active-count");
+    const downloadsEl = document.querySelector("#downloads");
+    const toggleEl = document.querySelector("#pause-toggle");
+    let paused = false;
+
+    toggleEl.addEventListener("click", async () => {
+      await fetch(paused ? "/resume" : "/pause", { method: "POST" });
+    });
+
+    function setText(selector, value, root = document) {
+      root.querySelector(selector).textContent = value;
+    }
+
+    function render(snapshot) {
+      paused = snapshot.paused;
+      statusEl.textContent = snapshot.status;
+      filesEl.textContent = snapshot.downloaded_files;
+      bytesEl.textContent = snapshot.downloaded_bytes;
+      activeEl.textContent = snapshot.active_count;
+      toggleEl.textContent = paused ? "Resume" : "Pause";
+      toggleEl.className = paused ? "secondary" : "contrast";
+
+      downloadsEl.replaceChildren();
+      if (snapshot.active.length === 0) {
+        const empty = document.createElement("p");
+        empty.textContent = "No active downloads";
+        downloadsEl.append(empty);
+        return;
+      }
+
+      for (const item of snapshot.active) {
+        const card = document.createElement("article");
+        card.className = "download-card";
+        card.innerHTML = `
+          <div class="download-head">
+            <strong class="file"></strong>
+            <span class="speed"></span>
+          </div>
+          <progress max="100"></progress>
+          <div class="download-meta">
+            <span class="progress-text"></span>
+            <span class="msg"></span>
+          </div>
+          <small class="path"></small>
+        `;
+        setText(".file", item.file_name, card);
+        setText(".speed", item.speed, card);
+        setText(".progress-text", `${item.percent.toFixed(1)}% (${item.downloaded}/${item.total})`, card);
+        setText(".msg", `msg ${item.msg_id}`, card);
+        setText(".path", item.path, card);
+        card.querySelector("progress").value = Math.min(100, Math.max(0, item.percent));
+        downloadsEl.append(card);
+      }
+    }
+
+    new EventSource("/events").onmessage = (event) => {
+      render(JSON.parse(event.data));
+    };
+  </script>
+</body>
+</html>

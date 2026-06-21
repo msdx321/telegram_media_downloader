@@ -1,26 +1,10 @@
 .idea/
-*.pyc
 *.pid
 *.db
 *.env
 .DS_Store
 .cache/
-.mypy_cache/
-.ruff_cache/
 .coverage
-
-# Python
-.Python
-.pytest_cache
-.python-version
-env/
-build/
-dist/
-*.egg-info/
-__pycache__/
-.venv
-venv/
-ENV/
 
 # Telegram sessions
 *.session
@@ -34,9 +18,7 @@ docker-compose.yaml
 # Runtime dirs
 downloads/
 log/
-temp/
 sessions/
 
-# PLY artifacts
-parser.out
-parsetab.py
+# Rust
+target/
