@@ -882,7 +882,6 @@ fn build_filter_fn(
 
     Box::new(move |msg| {
         let vars = MessageVars(msg);
-        let mut parser = parser.clone();
         match parser.parse(&vars) {
             Ok(Value::Bool(b)) => b,
             Ok(_) => false,

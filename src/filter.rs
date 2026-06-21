@@ -308,10 +308,8 @@ impl<'a> Iterator for Lexer<'a> {
 
 // ── Parser ───────────────────────────────────────────────────────────────
 
-#[derive(Clone)]
 pub struct Parser {
     tokens: Vec<Token>,
-    pos: usize,
 }
 
 impl Parser {
@@ -319,10 +317,24 @@ impl Parser {
         let lexer = Lexer::new(input);
         Self {
             tokens: lexer.collect(),
-            pos: 0,
         }
     }
 
+    pub fn parse(&self, vars: &impl VarLookup) -> Result<Value, String> {
+        Cursor {
+            tokens: &self.tokens,
+            pos: 0,
+        }
+        .parse(vars)
+    }
+}
+
+struct Cursor<'a> {
+    tokens: &'a [Token],
+    pos: usize,
+}
+
+impl Cursor<'_> {
     fn peek(&self) -> &Token {
         self.tokens.get(self.pos).unwrap_or(&Token::Eof)
     }
@@ -341,9 +353,7 @@ impl Parser {
         }
     }
 
-    // ── expression parsing (Pratt-style) ─────────────────────────────────
-
-    pub fn parse(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
+    fn parse(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
         let val = self.or_expr(vars)?;
         if !matches!(self.peek(), Token::Eof) {
             return Err(format!(
@@ -590,7 +600,7 @@ mod tests {
         // Regression: the first letter of a byte suffix used to be dropped,
         // so "10MB" was read as Num(10) plus a dangling Name("B") token and
         // the parser rejected the trailing token.
-        let mut p = Parser::new("10MB");
+        let p = Parser::new("10MB");
         assert!(matches!(
             p.parse(&HashMap::new()).unwrap(),
             Value::Int(n) if n == 10 * 1024 * 1024
@@ -599,12 +609,12 @@ mod tests {
 
     #[test]
     fn byte_suffix_in_comparison() {
-        let mut p = Parser::new("file_size >= 10MB");
+        let p = Parser::new("file_size >= 10MB");
         assert!(matches!(
             p.parse(&var("file_size", 10 * 1024 * 1024)).unwrap(),
             Value::Bool(true)
         ));
-        let mut p = Parser::new("file_size >= 10MB");
+        let p = Parser::new("file_size >= 10MB");
         assert!(matches!(
             p.parse(&var("file_size", 10)).unwrap(),
             Value::Bool(false)
