@@ -107,6 +107,8 @@ class FormatTestCase(unittest.TestCase):
         self.assertEqual(get_byte_from_str("2WBW"), None)
 
         self.assertEqual(get_byte_from_str("2CB"), None)
+
+
 class TestTruncateFilename(unittest.TestCase):
     def test_truncate_filename(self):
         test_cases = [

@@ -26,6 +26,7 @@ def format_byte(size: float, dot=2):
 @dataclass
 class SearchDateTimeResult:
     """search result for datetime"""
+
     value: str = ""
     right_str: str = ""
     left_str: str = ""
