@@ -1,6 +1,7 @@
 """Download Stat"""
 
 import asyncio
+import threading
 import time
 from enum import Enum
 
@@ -15,6 +16,8 @@ class DownloadState(Enum):
     Downloading = 1
     StopDownload = 2
 
+
+_result_lock = threading.Lock()
 
 _download_result: dict = {}
 _total_download_speed: int = 0
@@ -69,21 +72,21 @@ async def update_download_status(
             client.stop_transmission()
         await asyncio.sleep(1)
 
-    if not _download_result.get(chat_id):
-        _download_result[chat_id] = {}
+    with _result_lock:
+        if not _download_result.get(chat_id):
+            _download_result[chat_id] = {}
+        entry = _download_result[chat_id].get(message_id)
 
-    if _download_result[chat_id].get(message_id):
-        last_download_byte = _download_result[chat_id][message_id]["down_byte"]
-        last_time = _download_result[chat_id][message_id]["end_time"]
-        download_speed = _download_result[chat_id][message_id]["download_speed"]
-        each_second_total_download = _download_result[chat_id][message_id][
-            "each_second_total_download"
-        ]
-        end_time = _download_result[chat_id][message_id]["end_time"]
+    if entry is not None:
+        last_download_byte = entry["down_byte"]
+        last_time = entry["end_time"]
+        each_second_total_download = entry["each_second_total_download"]
+        end_time = entry["end_time"]
 
         _total_download_size += down_byte - last_download_byte
         each_second_total_download += down_byte - last_download_byte
 
+        download_speed = entry["download_speed"]
         if cur_time - last_time >= 1.0:
             download_speed = int(each_second_total_download / (cur_time - last_time))
             end_time = cur_time
@@ -91,24 +94,24 @@ async def update_download_status(
 
         download_speed = max(download_speed, 0)
 
-        _download_result[chat_id][message_id]["down_byte"] = down_byte
-        _download_result[chat_id][message_id]["end_time"] = end_time
-        _download_result[chat_id][message_id]["download_speed"] = download_speed
-        _download_result[chat_id][message_id]["each_second_total_download"] = (
-            each_second_total_download
-        )
+        with _result_lock:
+            entry["down_byte"] = down_byte
+            entry["end_time"] = end_time
+            entry["download_speed"] = download_speed
+            entry["each_second_total_download"] = each_second_total_download
     else:
         each_second_total_download = down_byte
-        _download_result[chat_id][message_id] = {
-            "down_byte": down_byte,
-            "total_size": total_size,
-            "file_name": file_name,
-            "start_time": start_time,
-            "end_time": cur_time,
-            "download_speed": down_byte / (cur_time - start_time),
-            "each_second_total_download": each_second_total_download,
-            "task_id": node.task_id,
-        }
+        with _result_lock:
+            _download_result[chat_id][message_id] = {
+                "down_byte": down_byte,
+                "total_size": total_size,
+                "file_name": file_name,
+                "start_time": start_time,
+                "end_time": cur_time,
+                "download_speed": down_byte / (cur_time - start_time),
+                "each_second_total_download": each_second_total_download,
+                "task_id": node.task_id,
+            }
         _total_download_size += down_byte
 
     if cur_time - _last_download_time >= 1.0:

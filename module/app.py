@@ -10,7 +10,6 @@ from loguru import logger
 from ruamel import yaml
 
 from module.filter import Filter
-from module.language import Language, set_language
 from utils.format import replace_date_time, validate_title
 from utils.meta_data import MetaData
 
@@ -158,7 +157,6 @@ class Application:
         self.web_host: str = "0.0.0.0"
         self.web_port: int = 5000
         self.max_download_task: int = 5
-        self.language = Language.EN
         self.debug_web: bool = False
         self.log_level: str = "INFO"
         self.start_timeout: int = 60
@@ -223,12 +221,6 @@ class Application:
             "max_concurrent_transmissions", self.max_concurrent_transmissions
         )
 
-        language = _config.get("language", "EN")
-
-        try:
-            self.language = Language[language.upper()]
-        except KeyError:
-            pass
 
         self.debug_web = _config.get("debug_web", self.debug_web)
         self.log_level = _config.get("log_level", self.log_level)
@@ -493,7 +485,6 @@ class Application:
         if self.config.get("last_read_message_id"):
             self.config.pop("last_read_message_id")
 
-        self.config["language"] = self.language.name
 
         if immediate:
             with open(self.config_file, "w", encoding="utf-8") as yaml_file:
@@ -503,10 +494,6 @@ class Application:
             with open(self.app_data_file, "w", encoding="utf-8") as yaml_file:
                 _yaml.dump(self.app_data, yaml_file)
 
-    def set_language(self, language: Language):
-        """Set Language"""
-        self.language = language
-        set_language(language)
 
     def load_config(self):
         """Load user config"""
@@ -530,7 +517,6 @@ class Application:
         """before run application do"""
         if not os.path.exists(self.session_file_path):
             os.makedirs(self.session_file_path)
-        set_language(self.language)
 
     def set_caption_name(self, chat_id: int | str, media_group_id: int | str | None, caption: str):
         """set caption name map
