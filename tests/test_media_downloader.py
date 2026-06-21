@@ -720,7 +720,7 @@ class MediaDownloaderTestCase(unittest.TestCase):
         )
         self.assertEqual((DownloadStatus.FailedDownload, None), result)
         mock_logger.error.assert_called_with(
-            "Message[11]: Timing out after 3 reties, download skipped."
+            "Message[11]: Timing out after 3 retries, download skipped."
         )
 
         # Test file name with out suffix
