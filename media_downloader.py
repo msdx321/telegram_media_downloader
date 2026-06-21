@@ -93,7 +93,7 @@ def _move_to_download_path(temp_download_path: str, download_path: str):
     shutil.move(temp_download_path, download_path)
 
 
-def _check_timeout(retry: int, _: int):
+def _check_timeout(retry: int):
     """Check if message download timeout, then add message id into failed_ids
 
     Parameters
@@ -415,7 +415,7 @@ async def download_media(
             logger.warning(f"Message[{message.id}]: {_t('file reference expired, refetching')}...")
             await asyncio.sleep(RETRY_TIME_OUT)
             message = await fetch_message(client, message)
-            if _check_timeout(retry, message.id):
+            if _check_timeout(retry):
                 logger.error(
                     f"Message[{message.id}]: "
                     f"{_t('file reference expired for 3 retries, download skipped.')}"
@@ -423,14 +423,14 @@ async def download_media(
         except pyrogram.errors.exceptions.flood_420.FloodWait as wait_err:  # ty:ignore[possibly-missing-submodule]
             await asyncio.sleep(wait_err.value)
             logger.warning("Message[{}]: FlowWait {}", message.id, wait_err.value)
-            _check_timeout(retry, message.id)
+            _check_timeout(retry)
         except TypeError:
             logger.warning(
                 f"{_t('Timeout Error occurred when downloading Message')}[{message.id}], "
                 f"{_t('retrying after')} {RETRY_TIME_OUT} {_t('seconds')}"
             )
             await asyncio.sleep(RETRY_TIME_OUT)
-            if _check_timeout(retry, message.id):
+            if _check_timeout(retry):
                 logger.error(
                     f"Message[{message.id}]: {_t('Timing out after 3 reties, download skipped.')}"
                 )

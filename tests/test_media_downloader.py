@@ -21,9 +21,6 @@ from media_downloader import (
     save_msg_to_file,
 )
 from module.app import Application, DownloadStatus, TaskNode
-from module.pyrogram_extension import (
-    reset_download_cache,
-)
 
 from .test_common import (
     Chat,
@@ -608,7 +605,6 @@ class MediaDownloaderTestCase(unittest.TestCase):
     @mock.patch("media_downloader._move_to_download_path", new=mock_move_to_download_path)
     @mock.patch("media_downloader._check_download_finish", new=mock_check_download_finish)
     def test_download_media(self, mock_logger, patch_sleep):
-        reset_download_cache()
         rest_app(MOCK_CONF)
         client = MockClient()
         app.hide_file_name = True

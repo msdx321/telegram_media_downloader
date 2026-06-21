@@ -8,13 +8,6 @@ class ReString:
         self.re_string = re_string
 
 
-class NoneObj:
-    """for None obj to match"""
-
-    def __init__(self):
-        pass
-
-
 class MetaData:
     """
     * `message_date` : - Date the message was sent
@@ -90,26 +83,6 @@ class MetaData:
             "caption": self.message_caption,
             "file_size": self.media_file_size,
             "file_name": self.media_file_name,
-            "media_type": self.media_type,
-            "file_extension": self.file_extension,
-            "sender_id": self.sender_id,
-            "sender_name": self.sender_name,
-            "reply_to_message_id": self.reply_to_message_id,
-            "message_thread_id": self.message_thread_id,
-            "topic_id": self.message_thread_id,
-        }
-
-    def export(self) -> dict:
-        """Export meta data"""
-        return {
-            "message_date": self.message_date,
-            "message_id": self.message_id,
-            "message_caption": self.message_caption,
-            "media_file_size": self.media_file_size,
-            "media_width": self.media_width,
-            "media_height": self.media_height,
-            "media_file_name": self.media_file_name,
-            "media_duration": self.media_duration,
             "media_type": self.media_type,
             "file_extension": self.file_extension,
             "sender_id": self.sender_id,

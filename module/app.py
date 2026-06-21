@@ -100,35 +100,6 @@ class ChatDownloadConfig:
         self.node: TaskNode = TaskNode(0)
 
 
-def get_config(config, key, default=None, val_type=str, verbose=True):
-    """
-    Retrieves a configuration value from the given `config` dictionary
-    based on the specified `key`.
-
-    Args:
-        config (dict): A dictionary containing the configuration values.
-        key (str): The key of the configuration value to retrieve.
-        default (Any, optional): The default value to be returned
-            if the `key` is not found.
-        val_type (type, optional): The data type of the configuration value.
-        verbose (bool, optional): A flag indicating whether to print
-            a warning message if the `key` is not found.
-
-    Returns:
-        The configuration value associated with the specified `key`,
-         converted to the specified `type`. If the `key` is not found,
-         the `default` value is returned.
-    """
-    val = config.get(key, default)
-    if isinstance(val, val_type):
-        return val
-
-    if verbose:
-        logger.warning(f"{key} is not {val_type.__name__}")
-
-    return default
-
-
 class Application:
     """Application load config and update config."""
 
@@ -262,22 +233,13 @@ class Application:
         self.debug_web = _config.get("debug_web", self.debug_web)
         self.log_level = _config.get("log_level", self.log_level)
 
-        self.start_timeout = get_config(_config, "start_timeout", self.start_timeout, int)
+        self.start_timeout = _config.get("start_timeout", self.start_timeout)
 
-        self.date_format = get_config(
-            _config,
-            "date_format",
-            self.date_format,
-            str,
-        )
+        self.date_format = _config.get("date_format", self.date_format)
 
-        self.drop_no_audio_video = get_config(
-            _config, "drop_no_audio_video", self.drop_no_audio_video, bool
-        )
+        self.drop_no_audio_video = _config.get("drop_no_audio_video", self.drop_no_audio_video)
 
-        self.enable_download_txt = get_config(
-            _config, "enable_download_txt", self.enable_download_txt, bool
-        )
+        self.enable_download_txt = _config.get("enable_download_txt", self.enable_download_txt)
 
         try:
             date = datetime(2023, 10, 31)

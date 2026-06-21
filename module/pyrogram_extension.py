@@ -27,16 +27,6 @@ _mimetypes.readfp(StringIO(mime_types))
 _download_cache = Cache(1024 * 1024 * 1024)
 
 
-def reset_download_cache():
-    """Reset download cache"""
-    _download_cache.store.clear()
-
-
-def _guess_mime_type(filename: str) -> str | None:
-    """Guess mime type"""
-    return _mimetypes.guess_type(filename)[0]
-
-
 def _guess_extension(mime_type: str) -> str | None:
     """Guess extension"""
     return _mimetypes.guess_extension(mime_type)
@@ -176,13 +166,6 @@ def set_meta_data(meta_data: MetaData, message: pyrogram.types.Message, caption:
 # ---------------------------------------------------------------------------
 
 
-class HookSession(pyrogram.session.Session):  # ty:ignore[possibly-missing-submodule]
-    """Hook Session"""
-
-    def start_timeout(self: pyrogram.session.Session, start_timeout: int):  # ty:ignore[possibly-missing-submodule]
-        self.START_TIMEOUT = start_timeout
-
-
 class HookClient(pyrogram.Client):
     """Hook Client with configurable start timeout."""
 
@@ -204,13 +187,13 @@ class HookClient(pyrogram.Client):
 
         await self.load_session()
 
-        self.session = HookSession(
+        self.session = pyrogram.session.Session(
             self,
             await self.storage.dc_id(),
             await self.storage.auth_key(),
             await self.storage.test_mode(),
         )
-        self.session.start_timeout(self.START_TIME_OUT)
+        self.session.START_TIMEOUT = self.START_TIME_OUT
 
         await self.session.start()
 

@@ -7,7 +7,7 @@ from typing import Any
 from ply import lex, yacc
 
 from utils.format import get_byte_from_str
-from utils.meta_data import MetaData, NoneObj, ReString
+from utils.meta_data import MetaData, ReString
 
 
 class BaseFilter:
@@ -145,10 +145,6 @@ class BaseFilter:
         | expression '*' expression
         | expression '/' expression"""
         self.check_type(p)
-        if isinstance(p[1], NoneObj):
-            p[1] = 0
-        if isinstance(p[3], NoneObj):
-            p[3] = 0
 
         if p[2] == "+":
             p[0] = p[1] + p[3]
@@ -165,9 +161,6 @@ class BaseFilter:
         """expression : expression '>' expression
         | expression '<' expression"""
         self.check_type(p)
-        if isinstance(p[1], NoneObj) or isinstance(p[3], NoneObj):
-            p[0] = True
-            return
 
         if p[1] is None or p[3] is None:
             p[0] = False
@@ -184,9 +177,6 @@ class BaseFilter:
     def p_expression_ge(self, p):
         "expression : expression GE expression"
         self.check_type(p)
-        if isinstance(p[1], NoneObj) or isinstance(p[3], NoneObj):
-            p[0] = True
-            return
 
         if p[1] is None or p[3] is None:
             p[0] = False
@@ -198,9 +188,6 @@ class BaseFilter:
     def p_expression_le(self, p):
         "expression : expression LE expression"
         self.check_type(p)
-        if isinstance(p[1], NoneObj) or isinstance(p[3], NoneObj):
-            p[0] = True
-            return
 
         if p[1] is None or p[3] is None:
             p[0] = False
@@ -212,9 +199,6 @@ class BaseFilter:
     def p_expression_eq(self, p):
         "expression : expression EQ expression"
         self.check_type(p)
-        if isinstance(p[1], NoneObj) or isinstance(p[3], NoneObj):
-            p[0] = True
-            return
 
         if p[1] is None or p[3] is None:
             p[0] = False
@@ -239,9 +223,6 @@ class BaseFilter:
     def p_expression_ne(self, p):
         "expression : expression NE expression"
         self.check_type(p)
-        if isinstance(p[1], NoneObj) or isinstance(p[3], NoneObj):
-            p[0] = True
-            return
 
         if p[1] is None or p[3] is None:
             p[0] = False
@@ -286,7 +267,6 @@ class BaseFilter:
             self._output(f"Undefined name '{p[1]}'")
             raise ValueError(f"Undefined name {p[1]}") from e
             # FIXME: not support not exist name
-            # p[0] = NoneObj()
 
     def p_expression_lor(self, p):
         "expression : expression LOR expression"
@@ -321,7 +301,7 @@ class BaseFilter:
 
     def check_type(self, p):
         """Check filter type if is right"""
-        if p[1] is None or p[1] is NoneObj or p[3] is None or p[3] is NoneObj:
+        if p[1] is None or p[3] is None:
             return
         if isinstance(p[1], str):
             if not isinstance(p[3], str) and not isinstance(p[3], ReString):
