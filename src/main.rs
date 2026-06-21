@@ -1092,12 +1092,11 @@ async fn preallocate(file: &tokio::fs::File, size: u64) -> anyhow::Result<()> {
         // posix_fallocate is a blocking syscall; run it off the async thread.
         let rc =
             tokio::task::spawn_blocking(move || unsafe { posix_fallocate(fd, 0, len) }).await?;
-        if rc == 0 {
-            return Ok(());
+        if rc != 0 {
+            // ENOTSUP (e.g. over NFS) / EDQUOT / etc.: fall back to a sparse truncate.
+            file.set_len(size).await?;
         }
-        // ENOTSUP (e.g. over NFS) / EDQUOT / etc.: fall back to a sparse truncate.
-        file.set_len(size).await?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(target_os = "linux"))]
     {
