@@ -644,6 +644,7 @@ async fn process_chat(
     info!("chat {}: ~{total} messages available", chat_cfg.chat_id);
 
     let filter_fn = build_filter_fn(chat_cfg, cfg);
+    let task_cfg = Arc::new(cfg.clone());
     let mut tasks = Vec::new();
 
     loop {
@@ -693,7 +694,7 @@ async fn process_chat(
         let has_text = !msg.text().is_empty();
 
         if !has_media && cfg.enable_download_txt && has_text {
-            let cfg = cfg.clone();
+            let cfg = task_cfg.clone();
             let msg_clone = msg.clone();
             let live_retry = live_retry.clone();
             let stats = stats.clone();
@@ -743,7 +744,7 @@ async fn process_chat(
 
         // Spawn download task
         let client = client.clone();
-        let cfg = cfg.clone();
+        let cfg = task_cfg.clone();
         let file_ids = runtime.file_ids.clone();
         let live_retry = live_retry.clone();
         let stats = stats.clone();
