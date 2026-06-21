@@ -44,7 +44,9 @@ def init_web(app: Application):
         threading.Thread(target=run_web_server, args=(app,)).start()
     else:
         threading.Thread(
-            target=get_flask_app().run, daemon=True, args=(app.web_host, app.web_port),
+            target=get_flask_app().run,
+            daemon=True,
+            args=(app.web_host, app.web_port),
             kwargs={"threaded": True},
         ).start()
 
@@ -63,10 +65,12 @@ def index():
 @_flask_app.route("/get_download_status")
 def get_download_speed():
     """Get download speed"""
-    return json.dumps({
-        "download_speed": format_byte(get_total_download_speed()) + "/s",
-        "upload_speed": "0.00 B/s",
-    })
+    return json.dumps(
+        {
+            "download_speed": format_byte(get_total_download_speed()) + "/s",
+            "upload_speed": "0.00 B/s",
+        }
+    )
 
 
 @_flask_app.route("/set_download_state", methods=["POST"])
@@ -107,16 +111,18 @@ def get_download_list():
                 is_already_down = value["down_byte"] == value["total_size"]
                 if already_down and not is_already_down:
                     continue
-                raw.append({
-                    "chat": str(chat_id),
-                    "id": str(idx),
-                    "filename": os.path.basename(value["file_name"]),
-                    "total_size": format_byte(value["total_size"]),
-                    "download_progress": round(
-                        value["down_byte"] / value["total_size"] * 100, 1
-                    ),
-                    "download_speed": format_byte(value["download_speed"]) + "/s",
-                    "save_path": value["file_name"].replace("\\", "/"),
-                })
+                raw.append(
+                    {
+                        "chat": str(chat_id),
+                        "id": str(idx),
+                        "filename": os.path.basename(value["file_name"]),
+                        "total_size": format_byte(value["total_size"]),
+                        "download_progress": round(
+                            value["down_byte"] / value["total_size"] * 100, 1
+                        ),
+                        "download_speed": format_byte(value["download_speed"]) + "/s",
+                        "save_path": value["file_name"].replace("\\", "/"),
+                    }
+                )
 
     return json.dumps(raw)

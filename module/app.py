@@ -221,7 +221,6 @@ class Application:
             "max_concurrent_transmissions", self.max_concurrent_transmissions
         )
 
-
         self.debug_web = _config.get("debug_web", self.debug_web)
         self.log_level = _config.get("log_level", self.log_level)
 
@@ -485,7 +484,6 @@ class Application:
         if self.config.get("last_read_message_id"):
             self.config.pop("last_read_message_id")
 
-
         if immediate:
             with open(self.config_file, "w", encoding="utf-8") as yaml_file:
                 _yaml.dump(self.config, yaml_file)
@@ -493,7 +491,6 @@ class Application:
         if immediate:
             with open(self.app_data_file, "w", encoding="utf-8") as yaml_file:
                 _yaml.dump(self.app_data, yaml_file)
-
 
     def load_config(self):
         """Load user config"""
