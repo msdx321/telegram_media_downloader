@@ -3,7 +3,7 @@ mod filter;
 mod format;
 mod webui;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -17,6 +17,7 @@ use grammers_client::{Client, SignInError};
 use grammers_mtsender::SenderPool;
 use grammers_session::storages::SqliteSession;
 use log::{debug, error, info, warn};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, Semaphore};
