@@ -44,6 +44,8 @@ const CHUNK_RETRY_LIMIT: u32 = 3;
 /// Minimum bytes between `.progress` sidecar flushes, bounding how much
 /// progress an interruption can lose.
 const PROGRESS_FLUSH_BYTES: u64 = 16 * 1024 * 1024;
+const PROGRESS_REPORT_BYTES: u64 = 4 * 1024 * 1024;
+const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(500);
 
 static DOWNLOAD_PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     ProgressStyle::with_template(
@@ -1299,6 +1301,24 @@ async fn send_chunk(
     }
 }
 
+async fn report_download_progress(
+    progress: &DownloadProgress<'_>,
+    start: u64,
+    downloaded: u64,
+    started: Instant,
+) {
+    progress.pb.set_position(downloaded);
+    let elapsed = started.elapsed().as_secs_f64().max(0.001);
+    progress
+        .web_state
+        .download_progress(
+            progress.msg_id,
+            downloaded,
+            ((downloaded - start) as f64 / elapsed) as u64,
+        )
+        .await;
+}
+
 async fn download_concurrent(
     client: &Client,
     media: &Media,
@@ -1376,6 +1396,8 @@ async fn download_concurrent(
     let mut last_flushed = start;
     let started = Instant::now();
     let mut pending: BTreeMap<u64, Vec<u8>> = BTreeMap::new();
+    let mut last_reported = start;
+    let mut last_reported_at = Instant::now();
     loop {
         // Receiving the next chunk races against shutdown so a Ctrl+C doesn't
         // block on a stalled worker; anything already in the pipe is still
@@ -1388,16 +1410,13 @@ async fn download_concurrent(
             _ = shutdown.cancelled() => break,
         };
         fetched = (fetched + chunk.len() as u64).min(total);
-        progress.pb.set_position(fetched);
-        let elapsed = started.elapsed().as_secs_f64().max(0.001);
-        progress
-            .web_state
-            .download_progress(
-                progress.msg_id,
-                fetched,
-                ((fetched - start) as f64 / elapsed) as u64,
-            )
-            .await;
+        if fetched.saturating_sub(last_reported) >= PROGRESS_REPORT_BYTES
+            || last_reported_at.elapsed() >= PROGRESS_REPORT_INTERVAL
+        {
+            report_download_progress(progress, start, fetched, started).await;
+            last_reported = fetched;
+            last_reported_at = Instant::now();
+        }
 
         pending.insert(offset, chunk);
         while let Some(chunk) = pending.remove(&next) {
@@ -1411,6 +1430,9 @@ async fn download_concurrent(
                 last_flushed = next;
             }
         }
+    }
+    if last_reported != fetched {
+        report_download_progress(progress, start, fetched, started).await;
     }
     // Final flush: persist the full contiguous position (== `total` on success)
     // so a later run can finalize without re-fetching.
