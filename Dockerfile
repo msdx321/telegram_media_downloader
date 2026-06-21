@@ -1,5 +1,9 @@
-# ── builder: compile the release binary ───────────────────────────────────
-FROM rust:1-bookworm AS builder
+# ── builder: compile a static release binary (musl) ───────────────────────
+FROM rust:1-alpine AS builder
+
+# build-base provides gcc + musl-dev + make in case any dependency's build
+# script compiles C code.
+RUN apk add --no-cache build-base
 
 WORKDIR /app
 
@@ -17,14 +21,12 @@ COPY src ./src
 COPY static ./static
 RUN cargo build --release --locked
 
-# ── runtime: minimal image with just the binary ──────────────────────────
-FROM debian:bookworm-slim AS runtime
+# ── runtime: minimal Alpine image with just the binary ────────────────────
+FROM alpine:latest AS runtime
+
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/tmd /usr/local/bin/tmd
 
