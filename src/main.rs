@@ -36,6 +36,7 @@ const RETRY_LIMIT: u32 = 3;
 const RETRY_DELAY_SECS: u64 = 5;
 const DOWNLOAD_CHUNK_SIZE: u64 = 512 * 1024;
 const RESUME_WORKERS: u64 = 4;
+const MAX_AUTH_FLOOD_RETRIES: u32 = 3;
 
 #[cfg(unix)]
 const SIGINT: i32 = 2;
@@ -200,6 +201,32 @@ async fn run_check_cycle(
 
 // ── Interactive login ────────────────────────────────────────────────────
 
+/// Seconds to wait for a FLOOD_WAIT error, or `None` if `err` is not one.
+///
+/// Grammers renders flood waits as `... (value: 225)`; the raw Telegram
+/// error type is `FLOOD_WAIT_N`. Defaults to 60 s when the number can't be
+/// read, so we never retry too eagerly.
+fn flood_wait_secs(err: &str) -> Option<u64> {
+    if !err.contains("FLOOD_WAIT") {
+        return None;
+    }
+    for needle in ["value:", "FLOOD_WAIT_"] {
+        if let Some((_, rest)) = err.split_once(needle) {
+            let digits: String = rest
+                .trim_start()
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+            if let Ok(n) = digits.parse::<u64>() {
+                if n > 0 {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    Some(60)
+}
+
 async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
     let cfg = load_config(CONFIG_FILE)?;
 
@@ -209,7 +236,35 @@ async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
     io::stdin().read_line(&mut phone)?;
     let phone = phone.trim().to_string();
 
-    let token = client.request_login_code(&phone, &cfg.api_hash).await?;
+    // request_login_code can hit FLOOD_WAIT if codes have been requested too
+    // often; sleep the required time and retry instead of bailing out.
+    let token = {
+        let mut flood_retries = 0u32;
+        loop {
+            match client.request_login_code(&phone, &cfg.api_hash).await {
+                Ok(token) => break token,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if let Some(wait_secs) = flood_wait_secs(&err_str) {
+                        if flood_retries >= MAX_AUTH_FLOOD_RETRIES {
+                            return Err(anyhow::anyhow!(
+                                "auth.sendCode still rate-limited after \
+                                 {MAX_AUTH_FLOOD_RETRIES} waits: {err_str}"
+                            ));
+                        }
+                        flood_retries += 1;
+                        warn!(
+                            "auth: FLOOD_WAIT — sleeping {wait_secs}s before retrying \
+                             ({flood_retries}/{MAX_AUTH_FLOOD_RETRIES})"
+                        );
+                        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
+                        continue;
+                    }
+                    return Err(e.into());
+                }
+            }
+        }
+    };
 
     print!("Enter the verification code sent via Telegram: ");
     io::stdout().flush().ok();
@@ -318,13 +373,7 @@ async fn process_chat(
             Ok(None) => break,
             Err(e) => {
                 let err_str = e.to_string();
-                if err_str.contains("FLOOD_WAIT") {
-                    // Extract wait seconds from error if possible
-                    let wait_secs = err_str
-                        .split_whitespace()
-                        .filter_map(|w| w.parse::<u64>().ok())
-                        .next()
-                        .unwrap_or(60);
+                if let Some(wait_secs) = flood_wait_secs(&err_str) {
                     warn!(
                         "chat {}: FLOOD_WAIT — sleeping {wait_secs}s",
                         chat_cfg.chat_id
@@ -985,4 +1034,35 @@ fn build_media_paths(
     let temp_path = final_path.with_extension(format!("{ext}.part"));
 
     Ok((temp_path, final_path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::flood_wait_secs;
+
+    #[test]
+    fn flood_wait_parses_grammers_value_form() {
+        // The exact format grammers emitted in the wild.
+        let err = "request error: rpc error 420: FLOOD_WAIT caused by \
+                   auth.sendCode (value: 225)";
+        assert_eq!(flood_wait_secs(err), Some(225));
+    }
+
+    #[test]
+    fn flood_wait_parses_raw_error_type() {
+        assert_eq!(flood_wait_secs("rpc error 420: FLOOD_WAIT_90"), Some(90));
+    }
+
+    #[test]
+    fn flood_wait_non_flood_error_is_none() {
+        assert_eq!(
+            flood_wait_secs("rpc error 401: AUTH_KEY_UNREGISTERED"),
+            None
+        );
+    }
+
+    #[test]
+    fn flood_wait_unreadable_defaults_to_60() {
+        assert_eq!(flood_wait_secs("FLOOD_WAIT (no number given)"), Some(60));
+    }
 }
