@@ -21,6 +21,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::sync::{Mutex, Semaphore};
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::{
@@ -645,7 +646,7 @@ async fn process_chat(
 
     let filter_fn = build_filter_fn(chat_cfg, cfg);
     let task_cfg = Arc::new(cfg.clone());
-    let mut tasks = Vec::new();
+    let mut tasks = JoinSet::new();
 
     loop {
         if shutdown.is_cancelled() {
@@ -703,7 +704,7 @@ async fn process_chat(
                 p = runtime.dl_sem.clone().acquire_owned() => p?,
                 _ = shutdown.cancelled() => break,
             };
-            tasks.push(tokio::spawn(async move {
+            tasks.spawn(async move {
                 let _permit = permit;
                 tokio::select! {
                     _ = shutdown.cancelled() => {
@@ -721,7 +722,8 @@ async fn process_chat(
                         }
                     }
                 }
-            }));
+            });
+            drain_finished_tasks(&mut tasks);
             continue;
         }
 
@@ -756,7 +758,7 @@ async fn process_chat(
 
         let mp = runtime.mp.clone();
         let web_state = runtime.web_state.clone();
-        tasks.push(tokio::spawn(async move {
+        tasks.spawn(async move {
             let _permit = permit;
             let _mp = mp;
             // NB: dropped _permit here releases concurrency slot
@@ -789,18 +791,17 @@ async fn process_chat(
                     }
                 }
             }
-        }));
+        });
+        drain_finished_tasks(&mut tasks);
     }
 
     // On shutdown, abort in-flight tasks at once. Their `.part` files hold a
     // contiguous prefix already, so resume picks up cleanly next run.
     if shutdown.is_cancelled() {
-        for task in &tasks {
-            task.abort();
-        }
+        tasks.abort_all();
     }
-    for task in tasks {
-        match task.await {
+    while let Some(result) = tasks.join_next().await {
+        match result {
             Ok(()) => {}
             Err(e) if e.is_cancelled() => {}
             Err(e) => warn!("download task panicked: {e}"),
@@ -826,6 +827,16 @@ async fn process_chat(
     );
 
     Ok(ChatOutcome { completed, last_id })
+}
+
+fn drain_finished_tasks(tasks: &mut JoinSet<()>) {
+    while let Some(result) = tasks.try_join_next() {
+        match result {
+            Ok(()) => {}
+            Err(e) if e.is_cancelled() => {}
+            Err(e) => warn!("download task panicked: {e}"),
+        }
+    }
 }
 
 /// Sleep for `dur`, returning early (`true`) if `shutdown` is tripped.
