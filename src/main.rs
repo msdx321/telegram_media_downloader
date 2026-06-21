@@ -45,7 +45,7 @@ const CHUNK_RETRY_LIMIT: u32 = 3;
 /// progress an interruption can lose.
 const PROGRESS_FLUSH_BYTES: u64 = 16 * 1024 * 1024;
 const PROGRESS_REPORT_BYTES: u64 = 4 * 1024 * 1024;
-const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(500);
+const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(2000);
 
 static DOWNLOAD_PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     ProgressStyle::with_template(
