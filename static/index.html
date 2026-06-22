@@ -3,30 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Telegram Media Downloader</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <script>
+    {
+      const theme = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("theme="))
+        ?.split("=")[1];
+      if (["system", "light", "dark"].includes(theme)) {
+        document.documentElement.dataset.theme = theme;
+      }
+    }
+  </script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-  <main class="container">
+  <main class="shell">
     <header class="topbar">
-      <div>
+      <div class="title">
         <h1>Telegram Media Downloader</h1>
-        <p>Status: <strong id="status">starting</strong></p>
+        <p>Status <strong id="status" class="status-pill">starting</strong></p>
       </div>
-      <button id="pause-toggle" class="contrast" type="button">Pause</button>
+      <div class="header-actions">
+        <button id="theme-toggle" class="theme-button" type="button">System</button>
+        <button id="pause-toggle" class="pause-button" type="button">Pause</button>
+      </div>
     </header>
 
-    <section class="stats-grid">
-      <article><strong id="downloaded-files">0</strong><br><small>Downloaded files</small></article>
-      <article><strong id="downloaded-bytes">0 B</strong><br><small>Downloaded size</small></article>
-      <article><strong id="active-count">0</strong><br><small>Active downloads</small></article>
+    <section class="stats-grid" aria-label="Download summary">
+      <div class="stat"><strong id="downloaded-files">0</strong><span>Downloaded files</span></div>
+      <div class="stat"><strong id="downloaded-bytes">0</strong><span>Downloaded size</span></div>
+      <div class="stat"><strong id="active-count">0</strong><span>Active downloads</span></div>
     </section>
 
-    <section>
-      <h2>Active Downloads</h2>
+    <section class="panel">
+      <div class="section-head">
+        <h2>Active Downloads</h2>
+      </div>
       <div id="downloads" class="downloads">
-        <p>No active downloads</p>
+        <p class="empty">No active downloads</p>
       </div>
     </section>
   </main>
@@ -38,11 +54,32 @@
     const activeEl = document.querySelector("#active-count");
     const downloadsEl = document.querySelector("#downloads");
     const toggleEl = document.querySelector("#pause-toggle");
+    const themeEl = document.querySelector("#theme-toggle");
+    const themeModes = ["system", "light", "dark"];
     let paused = false;
 
     toggleEl.addEventListener("click", async () => {
       await fetch(paused ? "/resume" : "/pause", { method: "POST" });
     });
+
+    themeEl.addEventListener("click", () => {
+      const current = document.documentElement.dataset.theme || "system";
+      const next = themeModes[(themeModes.indexOf(current) + 1) % themeModes.length];
+      setTheme(next);
+    });
+
+    function getCookie(name) {
+      return document.cookie
+        .split("; ")
+        .find((row) => row.startsWith(`${name}=`))
+        ?.split("=")[1];
+    }
+
+    function setTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      themeEl.textContent = theme[0].toUpperCase() + theme.slice(1);
+      document.cookie = `theme=${theme}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    }
 
     function setText(selector, value, root = document) {
       root.querySelector(selector).textContent = value;
@@ -55,30 +92,31 @@
       bytesEl.textContent = snapshot.downloaded_bytes;
       activeEl.textContent = snapshot.active_count;
       toggleEl.textContent = paused ? "Resume" : "Pause";
-      toggleEl.className = paused ? "secondary" : "contrast";
+      toggleEl.className = paused ? "pause-button is-paused" : "pause-button";
 
       downloadsEl.replaceChildren();
       if (snapshot.active.length === 0) {
         const empty = document.createElement("p");
+        empty.className = "empty";
         empty.textContent = "No active downloads";
         downloadsEl.append(empty);
         return;
       }
 
       for (const item of snapshot.active) {
-        const card = document.createElement("article");
+        const card = document.createElement("div");
         card.className = "download-card";
         card.innerHTML = `
           <div class="download-head">
             <strong class="file"></strong>
             <span class="speed"></span>
           </div>
-          <progress max="100"></progress>
+          <progress class="download-progress" max="100"></progress>
           <div class="download-meta">
             <span class="progress-text"></span>
             <span class="msg"></span>
           </div>
-          <small class="path"></small>
+          <div class="path"></div>
         `;
         setText(".file", item.file_name, card);
         setText(".speed", item.speed, card);
@@ -93,6 +131,9 @@
     new EventSource("/events").onmessage = (event) => {
       render(JSON.parse(event.data));
     };
+
+    const storedTheme = getCookie("theme");
+    setTheme(themeModes.includes(storedTheme) ? storedTheme : "system");
   </script>
 </body>
 </html>

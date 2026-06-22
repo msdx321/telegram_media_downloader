@@ -28,6 +28,9 @@ pub fn parse_byte_str(s: &str) -> Option<u64> {
 }
 
 pub fn format_byte(size: f64) -> String {
+    if size == 0.0 {
+        return "0".to_string();
+    }
     if (0.0..1.0).contains(&size) {
         return format!("{:.0}b", size / 0.125);
     }
