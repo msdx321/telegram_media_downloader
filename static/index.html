@@ -5,17 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>Telegram Media Downloader</title>
-  <script>
-    {
-      const theme = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("theme="))
-        ?.split("=")[1];
-      if (["system", "light", "dark"].includes(theme)) {
-        document.documentElement.dataset.theme = theme;
-      }
-    }
-  </script>
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>

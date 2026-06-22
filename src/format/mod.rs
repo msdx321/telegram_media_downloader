@@ -2,29 +2,30 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-/// Match reserved filename chars (like the Python validator).
-static RE_BAD_CHARS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"[/\\:*?"<>|\n]"#).unwrap());
-
-/// Byte unit constants.
 const BYTE_UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB", "PB"];
-
-static RE_BYTE_STR: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"^(\d+)\s*(B|KB|MB|GB|TB|PB)$"#).unwrap());
 
 static RE_DATETIME_LIT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}\s+\d{1,2}:\d{1,2}:\d{1,2}"#).unwrap()
 });
 
 pub fn validate_title(title: &str) -> String {
-    RE_BAD_CHARS.replace_all(title, "_").to_string()
+    title
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\n' => '_',
+            c => c,
+        })
+        .collect()
 }
 
 pub fn parse_byte_str(s: &str) -> Option<u64> {
-    let caps = RE_BYTE_STR.captures(s)?;
-    let num: u64 = caps.get(1)?.as_str().parse().ok()?;
-    let unit = caps.get(2)?.as_str();
-    let power = BYTE_UNITS.iter().position(|u| *u == unit)? as u32;
-    Some(num * 1024u64.pow(power))
+    let compact: String = s.chars().filter(|c| !c.is_ascii_whitespace()).collect();
+    for (power, unit) in BYTE_UNITS.iter().enumerate().rev() {
+        if let Some(num) = compact.strip_suffix(unit) {
+            return Some(num.parse::<u64>().ok()? * 1024u64.pow(power as u32));
+        }
+    }
+    None
 }
 
 pub fn format_byte(size: f64) -> String {
