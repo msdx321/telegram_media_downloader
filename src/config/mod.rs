@@ -24,6 +24,8 @@ pub struct Config {
     pub file_name_prefix_split: String,
     #[serde(default = "default_max_download_task")]
     pub max_download_task: usize,
+    #[serde(default = "default_download_connections")]
+    pub download_connections: usize,
     #[serde(default)]
     pub max_concurrent_transmissions: Option<usize>,
     #[serde(default = "default_web_host")]
@@ -122,6 +124,10 @@ fn default_all() -> Vec<String> {
 
 fn default_max_download_task() -> usize {
     5
+}
+
+fn default_download_connections() -> usize {
+    4
 }
 
 pub fn load_config(path: &str) -> anyhow::Result<Config> {

@@ -60,6 +60,7 @@ file_name_prefix:
   - file_name
 file_name_prefix_split: " - "
 max_download_task: 5
+download_connections: 4
 web_host: 0.0.0.0
 web_port: 5001
 check_interval_secs: 900
