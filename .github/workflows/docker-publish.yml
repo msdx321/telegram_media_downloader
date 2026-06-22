@@ -8,8 +8,10 @@ name: Docker Publish
 # tagged manifest list from the digests.
 on:
   push:
-    branches: [master]
     tags: ['v*']
+
+permissions:
+  contents: read
 
 env:
   REGISTRY_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/tmd-rs
@@ -96,11 +98,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
