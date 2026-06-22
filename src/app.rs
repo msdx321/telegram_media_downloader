@@ -21,7 +21,6 @@ use crate::downloader::media::{
     download_media_inner, file_extension_value, media_duration_value, media_file_name_value,
     media_file_size_value, media_matches_config, media_resolution_value, media_type_value,
 };
-use crate::downloader::text::save_text_message;
 use crate::filter::{Parser, Value, VarLookup};
 use crate::format::replace_date_time;
 use crate::webui::WebState;
@@ -91,9 +90,7 @@ pub(crate) async fn run_downloader(
         .map(|d| (d.chat_id.clone(), d))
         .collect();
 
-    let concurrency = cfg
-        .max_concurrent_transmissions
-        .unwrap_or(cfg.max_download_task);
+    let concurrency = cfg.max_download_task;
     let dl_semaphore = Arc::new(Semaphore::new(concurrency));
     let mp = Arc::new(MultiProgress::new());
     let runtime = DownloadRuntime {
@@ -176,9 +173,8 @@ fn log_config_summary(cfg: &Config, data_chats: &HashMap<String, ChatData>, conc
         cfg.save_path.display()
     );
     info!(
-        "config: media_types=[{}] txt_download={} web_ui={}:{}",
+        "config: media_types=[{}] web_ui={}:{}",
         cfg.media_types.join(","),
-        cfg.enable_download_txt,
         cfg.web_host,
         cfg.web_port
     );
@@ -448,7 +444,6 @@ struct ChatStats {
     scanned: AtomicU64,
     downloaded: AtomicU64,
     skipped: AtomicU64,
-    text_saved: AtomicU64,
     failed: AtomicU64,
 }
 
@@ -538,43 +533,7 @@ async fn process_chat(
             last_id = msg_id;
         }
 
-        let has_media = msg.media().is_some();
-        let has_text = !msg.text().is_empty();
-
-        if !has_media && cfg.enable_download_txt && has_text {
-            let cfg = task_cfg.clone();
-            let msg_clone = msg.clone();
-            let live_retry = live_retry.clone();
-            let stats = stats.clone();
-            let shutdown = shutdown.clone();
-            let permit = tokio::select! {
-                p = runtime.dl_sem.clone().acquire_owned() => p?,
-                _ = shutdown.cancelled() => break,
-            };
-            tasks.spawn(async move {
-                let _permit = permit;
-                tokio::select! {
-                    _ = shutdown.cancelled() => {
-                        debug!("txt msg {}: interrupted", msg_clone.id());
-                    }
-                    r = save_text_message(&msg_clone, &cfg) => match r {
-                        Ok(()) => {
-                            stats.text_saved.fetch_add(1, Ordering::Relaxed);
-                            live_retry.lock().await.remove(&msg_clone.id());
-                        }
-                        Err(e) => {
-                            warn!("txt msg {}: {e:#}", msg_clone.id());
-                            stats.failed.fetch_add(1, Ordering::Relaxed);
-                            live_retry.lock().await.insert(msg_clone.id());
-                        }
-                    }
-                }
-            });
-            drain_finished_tasks(&mut tasks);
-            continue;
-        }
-
-        if !has_media {
+        if msg.media().is_none() {
             continue;
         }
 
@@ -659,12 +618,11 @@ async fn process_chat(
         chat_cfg.last_read_message_id
     };
     info!(
-        "chat {}: scanned {} msg(s) - downloaded {}, skipped {}, text {}, failed {}, last_id={}{}",
+        "chat {}: scanned {} msg(s) - downloaded {}, skipped {}, failed {}, last_id={}{}",
         chat_cfg.chat_id,
         stats.scanned.load(Ordering::Relaxed),
         stats.downloaded.load(Ordering::Relaxed),
         stats.skipped.load(Ordering::Relaxed),
-        stats.text_saved.load(Ordering::Relaxed),
         stats.failed.load(Ordering::Relaxed),
         last_id,
         if completed { "" } else { " [interrupted]" }

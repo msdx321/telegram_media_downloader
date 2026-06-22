@@ -45,6 +45,7 @@ api_id: your_api_id
 chat:
   - chat_id: telegram_chat_id
     last_read_message_id: 0
+    download_filter: "file_size >= 10MB"
 media_types:
   - audio
   - document
@@ -65,5 +66,4 @@ web_host: 0.0.0.0
 web_port: 5001
 check_interval_secs: 900
 date_format: "%Y_%m"
-enable_download_txt: false
 ```

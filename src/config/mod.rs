@@ -26,8 +26,6 @@ pub struct Config {
     pub max_download_task: usize,
     #[serde(default = "default_download_connections")]
     pub download_connections: usize,
-    #[serde(default)]
-    pub max_concurrent_transmissions: Option<usize>,
     #[serde(default = "default_web_host")]
     pub web_host: String,
     #[serde(default = "default_web_port")]
@@ -36,8 +34,6 @@ pub struct Config {
     pub check_interval_secs: u64,
     #[serde(default = "default_date_format")]
     pub date_format: String,
-    #[serde(default)]
-    pub enable_download_txt: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
