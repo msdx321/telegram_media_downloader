@@ -19,8 +19,8 @@ use tokio_stream::{once, StreamExt};
 
 use crate::format::format_byte;
 
-const INDEX_HTML: &str = include_str!("../static/index.html");
-const APP_CSS: &str = include_str!("../static/app.css");
+const INDEX_HTML: &str = include_str!("../../static/index.html");
+const APP_CSS: &str = include_str!("../../static/app.css");
 const PROGRESS_UPDATE_MS: u64 = 2000;
 
 pub struct WebState {
