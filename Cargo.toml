@@ -8,7 +8,7 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-indicatif = "0.17"
+indicatif = "0.18"
 grammers-client = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-client", features = ["fs", "proxy"] }
 grammers-session = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-session" }
 grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-mtsender" }
