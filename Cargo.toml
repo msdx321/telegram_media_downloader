@@ -1,6 +1,6 @@
 [package]
 name = "tmd"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["msdx321 <msdx321@gmail.com>", "tangyoha <tangyoha@outlook.com>"]
 description = "Telegram Media Downloader - native Rust port"
@@ -31,3 +31,8 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 strip = true
+
+[profile.prof]
+inherits = "release"
+debug = true
+strip = "none"

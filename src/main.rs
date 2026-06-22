@@ -10,14 +10,23 @@ use std::sync::Arc;
 use app::{run_downloader, Shutdown, CONFIG_FILE};
 use config::load_config;
 use log::{info, warn};
+use tokio::runtime::Builder;
 use webui::WebState;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     init_logger();
     info!("Telegram Media Downloader (Rust) - starting");
 
     let cfg = load_config(CONFIG_FILE)?;
+    let worker_threads = cfg.max_download_task.max(1);
+    Builder::new_multi_thread()
+        .worker_threads(worker_threads)
+        .enable_all()
+        .build()?
+        .block_on(run(cfg))
+}
+
+async fn run(cfg: config::Config) -> anyhow::Result<()> {
     let web_state = Arc::new(WebState::new());
     tokio::spawn(webui::run(
         web_state.clone(),
