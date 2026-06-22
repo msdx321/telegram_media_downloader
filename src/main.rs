@@ -63,8 +63,6 @@ unsafe extern "C" {
     fn posix_fallocate(fd: i32, offset: i64, len: i64) -> i32;
 }
 
-// ── Shutdown coordination ──────────────────────────────────────────────────
-
 /// Process-wide cancellation token, tripped by SIGINT.
 ///
 /// Cloneable and cheap; every downloader coroutine holds a clone so the signal
@@ -101,7 +99,7 @@ impl Shutdown {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_logger();
-    info!("Telegram Media Downloader (Rust) — starting");
+    info!("Telegram Media Downloader (Rust) - starting");
 
     let cfg = load_config(CONFIG_FILE)?;
     let web_state = Arc::new(WebState::new());
@@ -163,10 +161,10 @@ fn install_signal_handler(shutdown: Shutdown) {
         if !wait_for_interrupt().await {
             return;
         }
-        warn!("interrupt received — draining downloads and saving state (Ctrl+C again to force)");
+        warn!("interrupt received - draining downloads and saving state (Ctrl+C again to force)");
         shutdown.cancel();
         if wait_for_interrupt().await {
-            eprintln!("second interrupt — forcing immediate exit");
+            eprintln!("second interrupt - forcing immediate exit");
             std::process::exit(130);
         }
     });
@@ -200,7 +198,6 @@ async fn run_downloader(
     std::fs::create_dir_all(&cfg.save_path)?;
     std::fs::create_dir_all("sessions")?;
 
-    // ── session + client ────────────────────────────────────────────────
     let session = Arc::new(SqliteSession::open(SESSION_FILE).await?);
     let SenderPool {
         runner,
@@ -210,14 +207,12 @@ async fn run_downloader(
     let client = Client::new(pool_handle);
     let _runner_handle = tokio::spawn(runner.run());
 
-    // ── authorization ────────────────────────────────────────────────────
     if !client.is_authorized().await.unwrap_or(false) {
         authorize_interactive(&client).await?;
         info!("Session saved to {SESSION_FILE}");
     }
-    info!("Authorized — ready");
+    info!("Authorized - ready");
 
-    // ── build per-chat state ──────────────────────────────────────────────
     let file_ids: Arc<Mutex<HashSet<String>>> =
         Arc::new(Mutex::new(data.downloaded_file_ids.drain(..).collect()));
 
@@ -262,7 +257,7 @@ async fn run_downloader(
             break;
         }
         info!(
-            "cycle {cycle_no} complete in {:.1}s — sleeping {}s (Ctrl+C to shut down)",
+            "cycle {cycle_no} complete in {:.1}s - sleeping {}s (Ctrl+C to shut down)",
             cycle_started.elapsed().as_secs_f64(),
             cfg.check_interval_secs
         );
@@ -358,7 +353,7 @@ async fn log_shutdown_summary(
             .map(|d| d.ids_to_retry.len())
             .unwrap_or(0);
         info!(
-            "shutdown: chat '{}' last_read={} ({} id(s) to retry) — partial downloads kept as .part for resume",
+            "shutdown: chat '{}' last_read={} ({} id(s) to retry) - partial downloads kept as .part for resume",
             c.chat_id, c.last_read_message_id, retry
         );
     }
@@ -405,27 +400,12 @@ async fn run_check_cycle(
 
         match process_chat(client, cfg, chat_cfg, live_retry.clone(), runtime, shutdown).await {
             Ok(outcome) => {
-                let retry: Vec<i32> = {
-                    let mut v: Vec<i32> = live_retry.lock().await.iter().copied().collect();
-                    v.sort_unstable();
-                    v
-                };
-                if retry.is_empty() {
-                    data_chats.remove(&chat_id);
-                } else {
-                    data_chats
-                        .entry(chat_id.clone())
-                        .and_modify(|dc| dc.ids_to_retry = retry.clone())
-                        .or_insert_with(|| ChatData {
-                            chat_id: chat_id.clone(),
-                            ids_to_retry: retry,
-                        });
-                }
+                sync_retry_set(data_chats, &chat_id, &live_retry).await;
 
                 if outcome.completed {
                     update_chat_state(cfg, chat_cfg, outcome.last_id)?;
                     info!(
-                        "chat {}: scan complete — last_read advanced to {}, {} id(s) pending retry",
+                        "chat {}: scan complete - last_read advanced to {}, {} id(s) pending retry",
                         chat_cfg.chat_id,
                         outcome.last_id,
                         data_chats
@@ -435,7 +415,7 @@ async fn run_check_cycle(
                     );
                 } else {
                     info!(
-                        "chat {}: scan interrupted at msg {} — state preserved for resume",
+                        "chat {}: scan interrupted at msg {} - state preserved for resume",
                         chat_cfg.chat_id, outcome.last_id
                     );
                     return Ok(false);
@@ -445,22 +425,7 @@ async fn run_check_cycle(
                 // A real error (peer resolution, etc.). Still flush the live
                 // retry set so partial progress survives, then keep going unless
                 // we were also asked to shut down.
-                let retry: Vec<i32> = {
-                    let mut v: Vec<i32> = live_retry.lock().await.iter().copied().collect();
-                    v.sort_unstable();
-                    v
-                };
-                if retry.is_empty() {
-                    data_chats.remove(&chat_id);
-                } else {
-                    data_chats
-                        .entry(chat_id.clone())
-                        .and_modify(|dc| dc.ids_to_retry = retry.clone())
-                        .or_insert_with(|| ChatData {
-                            chat_id: chat_id.clone(),
-                            ids_to_retry: retry,
-                        });
-                }
+                sync_retry_set(data_chats, &chat_id, &live_retry).await;
                 error!("chat {chat_id}: {e:#}");
                 if shutdown.is_cancelled() {
                     return Ok(false);
@@ -471,6 +436,26 @@ async fn run_check_cycle(
     Ok(true)
 }
 
+async fn sync_retry_set(
+    data_chats: &mut HashMap<String, ChatData>,
+    chat_id: &str,
+    live_retry: &Arc<Mutex<HashSet<i32>>>,
+) {
+    let mut retry: Vec<i32> = live_retry.lock().await.iter().copied().collect();
+    retry.sort_unstable();
+    if retry.is_empty() {
+        data_chats.remove(chat_id);
+    } else {
+        data_chats.insert(
+            chat_id.to_string(),
+            ChatData {
+                chat_id: chat_id.to_string(),
+                ids_to_retry: retry,
+            },
+        );
+    }
+}
+
 /// Wait while the web UI has paused downloads, but bail out immediately when
 /// `shutdown` is tripped. Returns `false` if shutdown was requested.
 async fn wait_paused(web_state: &WebState, shutdown: &Shutdown) -> bool {
@@ -479,8 +464,6 @@ async fn wait_paused(web_state: &WebState, shutdown: &Shutdown) -> bool {
         _ = web_state.wait_if_paused() => !shutdown.is_cancelled(),
     }
 }
-
-// ── Interactive login ────────────────────────────────────────────────────
 
 /// Seconds to wait for a FLOOD_WAIT error, or `None` if `err` is not one.
 ///
@@ -515,14 +498,14 @@ async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
     io::stdout().flush().ok();
     let mut phone = String::new();
     io::stdin().read_line(&mut phone)?;
-    let phone = phone.trim().to_string();
+    let phone = phone.trim();
 
     // request_login_code can hit FLOOD_WAIT if codes have been requested too
     // often; sleep the required time and retry instead of bailing out.
     let token = {
         let mut flood_retries = 0u32;
         loop {
-            match client.request_login_code(&phone, &cfg.api_hash).await {
+            match client.request_login_code(phone, &cfg.api_hash).await {
                 Ok(token) => break token,
                 Err(e) => {
                     let err_str = e.to_string();
@@ -535,7 +518,7 @@ async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
                         }
                         flood_retries += 1;
                         warn!(
-                            "auth: FLOOD_WAIT — sleeping {wait_secs}s before retrying \
+                            "auth: FLOOD_WAIT - sleeping {wait_secs}s before retrying \
                              ({flood_retries}/{MAX_AUTH_FLOOD_RETRIES})"
                         );
                         tokio::time::sleep(Duration::from_secs(wait_secs)).await;
@@ -551,9 +534,9 @@ async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
     io::stdout().flush().ok();
     let mut code = String::new();
     io::stdin().read_line(&mut code)?;
-    let code = code.trim().to_string();
+    let code = code.trim();
 
-    match client.sign_in(&token, &code).await {
+    match client.sign_in(&token, code).await {
         Ok(_) => Ok(()),
         Err(SignInError::PasswordRequired(pt)) => {
             let hint = pt.hint().unwrap_or_default();
@@ -567,8 +550,6 @@ async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
         Err(e) => Err(e.into()),
     }
 }
-
-// ── Update per-chat config after download ────────────────────────────────
 
 fn update_chat_state(
     cfg: &mut Config,
@@ -584,8 +565,6 @@ fn update_chat_state(
     save_config(CONFIG_FILE, cfg)?;
     Ok(())
 }
-
-// ── Chat download orchestrator ───────────────────────────────────────────
 
 struct DownloadRuntime {
     file_ids: Arc<Mutex<HashSet<String>>>,
@@ -666,7 +645,7 @@ async fn process_chat(
                         Some(s) => (s, "FLOOD_WAIT"),
                         None => (1, "iterator error"),
                     };
-                    warn!("chat {}: {label} — sleeping {secs}s", chat_cfg.chat_id);
+                    warn!("chat {}: {label} - sleeping {secs}s", chat_cfg.chat_id);
                     if sleep_cancellable(shutdown, Duration::from_secs(secs)).await {
                         break;
                     }
@@ -690,7 +669,6 @@ async fn process_chat(
             last_id = msg_id;
         }
 
-        // ── text-only messages ──────────────────────────────────────────
         let has_media = msg.media().is_some();
         let has_text = !msg.text().is_empty();
 
@@ -744,7 +722,6 @@ async fn process_chat(
             continue;
         }
 
-        // Spawn download task
         let client = client.clone();
         let cfg = task_cfg.clone();
         let file_ids = runtime.file_ids.clone();
@@ -760,14 +737,12 @@ async fn process_chat(
         let web_state = runtime.web_state.clone();
         tasks.spawn(async move {
             let _permit = permit;
-            let _mp = mp;
-            // NB: dropped _permit here releases concurrency slot
             match download_media_inner(
                 &client,
                 &msg,
                 &cfg,
                 &file_ids,
-                _mp.as_ref(),
+                mp.as_ref(),
                 &web_state,
                 &shutdown,
             )
@@ -783,9 +758,9 @@ async fn process_chat(
                 }
                 Err(e) => {
                     if shutdown.is_cancelled() {
-                        debug!("msg {}: interrupted — kept for resume", msg.id());
+                        debug!("msg {}: interrupted - kept for resume", msg.id());
                     } else {
-                        warn!("msg {}: download failed — {e:#}", msg.id());
+                        warn!("msg {}: download failed - {e:#}", msg.id());
                         stats.failed.fetch_add(1, Ordering::Relaxed);
                         live_retry.lock().await.insert(msg.id());
                     }
@@ -815,7 +790,7 @@ async fn process_chat(
         chat_cfg.last_read_message_id
     };
     info!(
-        "chat {}: scanned {} msg(s) — downloaded {}, skipped {}, text {}, failed {}, last_id={}{}",
+        "chat {}: scanned {} msg(s) - downloaded {}, skipped {}, text {}, failed {}, last_id={}{}",
         chat_cfg.chat_id,
         stats.scanned.load(Ordering::Relaxed),
         stats.downloaded.load(Ordering::Relaxed),
@@ -847,8 +822,6 @@ async fn sleep_cancellable(shutdown: &Shutdown, dur: Duration) -> bool {
     }
 }
 
-// ── Text message download ────────────────────────────────────────────────
-
 async fn save_text_message(
     msg: &grammers_client::message::Message,
     cfg: &Config,
@@ -862,7 +835,6 @@ async fn save_text_message(
     let date = msg.date().naive_utc();
     let datetime_str = date.format(&cfg.date_format).to_string();
 
-    // Build path: save_path/chat_title/datetime/
     let mut dir: PathBuf = cfg.save_path.clone();
     for seg in &cfg.file_path_prefix {
         match seg.as_str() {
@@ -882,8 +854,6 @@ async fn save_text_message(
     info!("msg {}: saved text -> {}", msg.id(), file_path.display());
     Ok(())
 }
-
-// ── Filter support ───────────────────────────────────────────────────────
 
 fn build_filter_fn(
     chat_cfg: &ChatConfig,
@@ -1050,13 +1020,11 @@ fn media_matches_config(media: &Media, cfg: &Config) -> bool {
     allowed.iter().any(|item| item == "all" || item == &ext)
 }
 
-// ── Media download ───────────────────────────────────────────────────────
-
 async fn download_media_inner(
     client: &Client,
     msg: &grammers_client::message::Message,
     cfg: &Config,
-    file_ids: &Arc<tokio::sync::Mutex<HashSet<String>>>,
+    file_ids: &Arc<Mutex<HashSet<String>>>,
     mp: &MultiProgress,
     web_state: &Arc<WebState>,
     shutdown: &Shutdown,
@@ -1221,7 +1189,7 @@ async fn download_media_inner(
             .unwrap_or(0);
 
         if total > 0 && actual != total {
-            warn!("msg={msg_id}: size mismatch ({actual} vs {total}) — retrying");
+            warn!("msg={msg_id}: size mismatch ({actual} vs {total}) - retrying");
             discard_partial(&temp_path).await;
             last_err = Some(anyhow::anyhow!("size mismatch"));
             continue;
@@ -1258,7 +1226,7 @@ async fn download_media_inner(
 async fn finalize_download(
     msg_id: i32,
     fid: &str,
-    file_ids: &Arc<tokio::sync::Mutex<HashSet<String>>>,
+    file_ids: &Arc<Mutex<HashSet<String>>>,
     temp_path: &Path,
     final_path: &Path,
     actual: u64,
@@ -1686,7 +1654,7 @@ fn build_media_paths(
                 .mime_type()
                 .map(|m| mime_to_ext(m).to_string())
                 .unwrap_or_else(|| "unknown".to_string());
-            if let Some(ref name) = doc.name() {
+            if let Some(name) = doc.name() {
                 if let Some(dot) = name.rfind('.') {
                     stem = name[..dot].to_string();
                     ext = name[dot + 1..].to_string();

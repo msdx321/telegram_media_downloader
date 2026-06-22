@@ -15,8 +15,6 @@ static RE_DATETIME_LIT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}\s+\d{1,2}:\d{1,2}:\d{1,2}"#).unwrap()
 });
 
-// ── public API ───────────────────────────────────────────────────────────
-
 pub fn validate_title(title: &str) -> String {
     RE_BAD_CHARS.replace_all(title, "_").to_string()
 }

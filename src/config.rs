@@ -73,8 +73,6 @@ pub struct ChatData {
     pub ids_to_retry: Vec<i32>,
 }
 
-// ── defaults ──────────────────────────────────────────────────────────────
-
 fn default_media_types() -> Vec<String> {
     vec![
         "audio".into(),
@@ -125,8 +123,6 @@ fn default_all() -> Vec<String> {
 fn default_max_download_task() -> usize {
     5
 }
-
-// ── load / save ──────────────────────────────────────────────────────────
 
 pub fn load_config(path: &str) -> anyhow::Result<Config> {
     let contents = fs::read_to_string(path).with_context(|| format!("cannot read {path}"))?;

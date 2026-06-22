@@ -3,7 +3,7 @@ name = "tmd"
 version = "0.1.0"
 edition = "2021"
 authors = ["msdx321 <msdx321@gmail.com>", "tangyoha <tangyoha@outlook.com>"]
-description = "Telegram Media Downloader — native Rust port"
+description = "Telegram Media Downloader - native Rust port"
 license = "MIT"
 readme = "README.md"
 

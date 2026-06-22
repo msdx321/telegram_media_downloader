@@ -26,8 +26,6 @@ static RE_DATETIME_FULL: LazyLock<Regex> = LazyLock::new(|| {
 static RE_DATETIME_DATE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}").unwrap());
 
-// ── AST ──────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
@@ -60,8 +58,6 @@ impl fmt::Display for Value {
         }
     }
 }
-
-// ── Tokenizer ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 enum Token {
@@ -126,14 +122,13 @@ impl<'a> Lexer<'a> {
             match self.next_char() {
                 Some(c) if c == quote => break,
                 Some(c) => s.push(c),
-                None => break, // unterminated string — treat EOL as end
+                None => break,
             }
         }
         Token::Str(s)
     }
 
     fn read_re_string(&mut self) -> Token {
-        // We've seen `r'` — read until closing quote.
         let mut s = String::new();
         loop {
             match self.next_char() {
@@ -305,8 +300,6 @@ impl<'a> Iterator for Lexer<'a> {
         })
     }
 }
-
-// ── Parser ───────────────────────────────────────────────────────────────
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -487,8 +480,6 @@ impl Cursor<'_> {
         }
     }
 }
-
-// ── Value operations ─────────────────────────────────────────────────────
 
 fn truthy_and(a: Value, b: Value) -> Value {
     match (a, b) {

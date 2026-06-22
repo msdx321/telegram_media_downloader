@@ -39,7 +39,6 @@ struct DashboardStats {
     active: BTreeMap<i32, DownloadStat>,
 }
 
-#[derive(Clone)]
 struct DownloadStat {
     file_name: String,
     path: String,
@@ -85,7 +84,7 @@ impl WebState {
 
     pub async fn set_status(&self, status: &str) {
         *self.status.lock().await = status.to_string();
-        self.publish_immediate().await;
+        self.publish().await;
     }
 
     pub async fn wait_if_paused(&self) {
@@ -116,7 +115,7 @@ impl WebState {
             },
         );
         drop(stats);
-        self.publish_immediate().await;
+        self.publish().await;
     }
 
     pub async fn download_progress(&self, msg_id: i32, downloaded: u64, speed_bps: u64) {
@@ -135,7 +134,7 @@ impl WebState {
             stats.downloaded_bytes += bytes;
         }
         drop(stats);
-        self.publish_immediate().await;
+        self.publish().await;
     }
 
     async fn set_paused(&self, paused: bool) {
@@ -147,10 +146,6 @@ impl WebState {
 
     fn subscribe(&self) -> broadcast::Receiver<String> {
         self.updates.subscribe()
-    }
-
-    async fn publish_immediate(&self) {
-        self.publish().await;
     }
 
     async fn publish_progress(&self) {
