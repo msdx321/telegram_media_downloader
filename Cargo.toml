@@ -12,14 +12,14 @@ indicatif = "0.17"
 grammers-client = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-client", features = ["fs", "proxy"] }
 grammers-session = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-session" }
 grammers-mtsender = { git = "https://codeberg.org/Lonami/grammers", package = "grammers-mtsender" }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = "0.4"
 regex = "1"
 rustc-hash = "2.1"
 axum = "0.8.9"
