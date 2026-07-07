@@ -173,7 +173,10 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        Token::Num(s.parse().unwrap())
+        match s.parse() {
+            Ok(n) => Token::Num(n),
+            Err(_) => Token::Name(s),
+        }
     }
 
     fn read_name(&mut self, first: char) -> Token {
@@ -209,8 +212,10 @@ impl<'a> Lexer<'a> {
             return Token::Time(dt);
         }
         // Try just date
-        if let Ok(dt) = chrono::NaiveDate::parse_from_str(normalized.trim(), "%Y-%m-%d") {
-            return Token::Time(dt.and_hms_opt(0, 0, 0).unwrap());
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(normalized.trim(), "%Y-%m-%d") {
+            if let Some(dt) = date.and_hms_opt(0, 0, 0) {
+                return Token::Time(dt);
+            }
         }
         // Fallback: treat as string
         Token::Str(s)
@@ -445,20 +450,14 @@ impl Cursor<'_> {
                 self.advance();
                 Ok(Value::Int(v))
             }
-            Token::Str(_) => {
-                if let Token::Str(s) = self.advance().clone() {
-                    Ok(Value::Str(s))
-                } else {
-                    unreachable!()
-                }
-            }
-            Token::ReStr(_) => {
-                if let Token::ReStr(r) = self.advance().clone() {
-                    Ok(Value::ReStr(r))
-                } else {
-                    unreachable!()
-                }
-            }
+            Token::Str(_) => match self.advance().clone() {
+                Token::Str(s) => Ok(Value::Str(s)),
+                t => Err(format!("expected string, got {t:?}")),
+            },
+            Token::ReStr(_) => match self.advance().clone() {
+                Token::ReStr(r) => Ok(Value::ReStr(r)),
+                t => Err(format!("expected regex string, got {t:?}")),
+            },
             Token::Time(dt) => {
                 let v = *dt;
                 self.advance();
