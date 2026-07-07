@@ -11,12 +11,13 @@ use tokio::sync::Mutex;
 
 use crate::app::{sleep_cancellable, wait_paused, Shutdown};
 use crate::config::Config;
-use crate::downloader::chunks::download_concurrent;
-use crate::downloader::finalize::{discard_partial, finalize_download};
-use crate::downloader::paths::build_media_paths;
-use crate::downloader::progress::{progress_style, resume_offset, DownloadProgress};
 use crate::format::format_byte;
 use crate::webui::WebState;
+
+use super::chunks::download_concurrent;
+use super::finalize::{discard_partial, finalize_download};
+use super::paths::build_media_paths;
+use super::progress::{progress_style, resume_offset, DownloadProgress};
 
 const RETRY_LIMIT: u32 = 3;
 const RETRY_DELAY_SECS: u64 = 5;

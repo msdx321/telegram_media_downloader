@@ -3,11 +3,12 @@ use std::path::PathBuf;
 use grammers_client::media::Media;
 
 use crate::config::Config;
-use crate::downloader::metadata::{media_kind_and_ext, mime_to_ext};
 use crate::format::{truncate_filename, validate_title};
 
+use super::metadata::{media_kind_and_ext, mime_to_ext};
+
 /// Returns (temp_path, final_path) for a media download.
-pub(crate) fn build_media_paths(
+pub(super) fn build_media_paths(
     msg: &grammers_client::message::Message,
     media: &Media,
     cfg: &Config,

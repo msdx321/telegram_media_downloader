@@ -6,8 +6,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::webui::WebState;
 
-pub(crate) const DOWNLOAD_CHUNK_SIZE: u64 = 512 * 1024;
-pub(crate) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(2000);
+pub(super) const DOWNLOAD_CHUNK_SIZE: u64 = 512 * 1024;
+pub(super) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(2000);
 
 static DOWNLOAD_PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     ProgressStyle::with_template(
@@ -17,17 +17,17 @@ static DOWNLOAD_PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     .progress_chars("##-")
 });
 
-pub(crate) struct DownloadProgress<'a> {
-    pub(crate) pb: &'a ProgressBar,
-    pub(crate) web_state: &'a Arc<WebState>,
-    pub(crate) msg_id: i32,
+pub(super) struct DownloadProgress<'a> {
+    pub(super) pb: &'a ProgressBar,
+    pub(super) web_state: &'a Arc<WebState>,
+    pub(super) msg_id: i32,
 }
 
-pub(crate) fn progress_style() -> ProgressStyle {
+pub(super) fn progress_style() -> ProgressStyle {
     DOWNLOAD_PROGRESS_STYLE.clone()
 }
 
-pub(crate) async fn report_download_progress(
+pub(super) async fn report_download_progress(
     progress: &DownloadProgress<'_>,
     start: u64,
     downloaded: u64,
@@ -52,7 +52,7 @@ pub(crate) async fn report_download_progress(
 /// `total` when the sidecar marks the file complete, the last flushed chunk
 /// boundary when partial, or 0 (clearing any stale sidecar) when the temp is
 /// missing.
-pub(crate) async fn resume_offset(temp_path: &Path, total: u64) -> anyhow::Result<u64> {
+pub(super) async fn resume_offset(temp_path: &Path, total: u64) -> anyhow::Result<u64> {
     let len = match tokio::fs::metadata(temp_path).await {
         Ok(m) => m.len(),
         Err(_) => {
@@ -72,7 +72,7 @@ pub(crate) async fn resume_offset(temp_path: &Path, total: u64) -> anyhow::Resul
 
 /// Path of the `.progress` sidecar recording how many contiguous bytes of
 /// `temp_path` have been fetched.
-pub(crate) fn progress_path(temp_path: &Path) -> PathBuf {
+pub(super) fn progress_path(temp_path: &Path) -> PathBuf {
     let mut p = temp_path.as_os_str().to_owned();
     p.push(".progress");
     PathBuf::from(p)
@@ -92,6 +92,6 @@ async fn read_progress(temp_path: &Path) -> u64 {
 
 /// Best-effort persist of the contiguous byte count. A failed write only means
 /// the next resume re-fetches a little more.
-pub(crate) async fn write_progress(temp_path: &Path, n: u64) {
+pub(super) async fn write_progress(temp_path: &Path, n: u64) {
     let _ = tokio::fs::write(progress_path(temp_path), n.to_string().into_bytes()).await;
 }

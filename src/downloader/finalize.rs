@@ -5,9 +5,10 @@ use log::info;
 use rustc_hash::FxHashSet as HashSet;
 use tokio::sync::Mutex;
 
-use crate::downloader::progress::progress_path;
 use crate::format::format_byte;
 use crate::webui::WebState;
+
+use super::progress::progress_path;
 
 const MAX_FILE_ID_CACHE: usize = 4096;
 
@@ -19,7 +20,7 @@ unsafe extern "C" {
 /// Promote a completed `.part` file to its final name, record its file id in
 /// the dedup cache, and notify the web UI. The caller has already validated
 /// `actual` against the expected size.
-pub(crate) async fn finalize_download(
+pub(super) async fn finalize_download(
     msg_id: i32,
     fid: &str,
     file_ids: &Arc<Mutex<HashSet<String>>>,
@@ -56,7 +57,7 @@ pub(crate) async fn finalize_download(
 
 /// Drop a partial `.part` download and its sidecar so the next attempt starts
 /// fresh.
-pub(crate) async fn discard_partial(temp_path: &Path) {
+pub(super) async fn discard_partial(temp_path: &Path) {
     let _ = tokio::fs::remove_file(temp_path).await;
     let _ = tokio::fs::remove_file(progress_path(temp_path)).await;
 }
@@ -65,7 +66,7 @@ pub(crate) async fn discard_partial(temp_path: &Path) {
 /// (`posix_fallocate`) so network-attached storage doesn't grow the file
 /// incrementally during chunked writes. Falls back to a sparse `set_len` when
 /// preallocation is unavailable (or on non-Linux hosts). No-op for `size == 0`.
-pub(crate) async fn preallocate(file: &tokio::fs::File, size: u64) -> anyhow::Result<()> {
+pub(super) async fn preallocate(file: &tokio::fs::File, size: u64) -> anyhow::Result<()> {
     if size == 0 {
         return Ok(());
     }

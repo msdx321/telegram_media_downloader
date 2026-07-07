@@ -11,10 +11,9 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 
 use crate::config::{ChatConfig, ChatData, Config};
-use crate::downloader::media::download_media_inner;
-use crate::downloader::metadata::{
-    file_extension_value, media_duration_value, media_file_name_value, media_file_size_value,
-    media_matches_config, media_resolution_value, media_type_value,
+use crate::downloader::{
+    download_media_inner, file_extension_value, media_duration_value, media_file_name_value,
+    media_file_size_value, media_matches_config, media_resolution_value, media_type_value,
 };
 use crate::filter::{Parser, Value, VarLookup};
 use crate::format::replace_date_time;

@@ -10,12 +10,12 @@ use rustc_hash::FxHashMap as HashMap;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 
-use crate::app::{flood_wait_secs, sleep_cancellable, wait_paused, Shutdown};
-use crate::downloader::finalize::preallocate;
-use crate::downloader::progress::{
+use super::finalize::preallocate;
+use super::progress::{
     report_download_progress, write_progress, DownloadProgress, DOWNLOAD_CHUNK_SIZE,
     PROGRESS_REPORT_INTERVAL,
 };
+use crate::app::{flood_wait_secs, sleep_cancellable, wait_paused, Shutdown};
 
 const RETRY_DELAY_SECS: u64 = 5;
 const CHUNK_RETRY_LIMIT: u32 = 3;
@@ -38,7 +38,7 @@ async fn send_chunk(
     }
 }
 
-pub(crate) async fn download_concurrent(
+pub(super) async fn download_concurrent(
     client: &Client,
     media: &Media,
     path: &Path,

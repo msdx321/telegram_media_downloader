@@ -50,7 +50,7 @@ pub(crate) fn media_resolution_value(msg: &grammers_client::message::Message) ->
     }
 }
 
-pub(crate) fn mime_to_ext(mime: &str) -> &str {
+pub(super) fn mime_to_ext(mime: &str) -> &str {
     match mime {
         "image/jpeg" => "jpg",
         "image/png" => "png",
@@ -83,7 +83,7 @@ fn document_kind(mime: &str) -> &str {
     }
 }
 
-pub(crate) fn media_kind_and_ext(media: &Media) -> Option<(&str, String)> {
+pub(super) fn media_kind_and_ext(media: &Media) -> Option<(&str, String)> {
     match media {
         Media::Photo(_) => Some(("photo", "jpg".to_string())),
         Media::Document(doc) => {
