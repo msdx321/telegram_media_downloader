@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use log::info;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::collections::{HashMap, HashSet};
 use tokio::sync::Mutex;
 
 use crate::config::{save_app_data, save_config, ChatConfig, ChatData, Config};

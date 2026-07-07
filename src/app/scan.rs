@@ -6,7 +6,7 @@ use anyhow::Context;
 use grammers_client::Client;
 use indicatif::MultiProgress;
 use log::{debug, error, info, warn};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use std::collections::{HashMap, HashSet};
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 
@@ -198,10 +198,6 @@ async fn process_chat(
 
         if msg_id > last_id {
             last_id = msg_id;
-        }
-
-        if msg.media().is_none() {
-            continue;
         }
 
         let Some(media) = msg.media() else {

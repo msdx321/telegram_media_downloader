@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use grammers_client::media::Media;
 use grammers_client::Client;
 use log::warn;
-use rustc_hash::FxHashMap as HashMap;
+use std::collections::HashMap;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 
