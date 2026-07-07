@@ -156,21 +156,21 @@ impl<'a> Lexer<'a> {
         // Check for byte suffix: 10MB, 1GB, etc. `c` is the first letter
         // (held in `peeked`); `self.chars` sits just past it, so we clone
         // from there to read the remaining letters without consuming them.
-        if let Some(c) = self.peek_char() {
-            if c.is_ascii_alphabetic() {
-                let tail: String = self
-                    .chars
-                    .clone()
-                    .take_while(|ch| ch.is_ascii_alphabetic())
-                    .collect();
-                let candidate = format!("{s}{c}{tail}");
-                if let Some(bytes) = parse_byte_str(&candidate) {
-                    self.next_char(); // consume the peeked first letter
-                    for _ in 0..tail.len() {
-                        self.next_char();
-                    }
-                    return Token::Num(bytes as i64);
+        if let Some(c) = self.peek_char()
+            && c.is_ascii_alphabetic()
+        {
+            let tail: String = self
+                .chars
+                .clone()
+                .take_while(|ch| ch.is_ascii_alphabetic())
+                .collect();
+            let candidate = format!("{s}{c}{tail}");
+            if let Some(bytes) = parse_byte_str(&candidate) {
+                self.next_char(); // consume the peeked first letter
+                for _ in 0..tail.len() {
+                    self.next_char();
                 }
+                return Token::Num(bytes as i64);
             }
         }
         match s.parse() {
@@ -212,10 +212,10 @@ impl<'a> Lexer<'a> {
             return Token::Time(dt);
         }
         // Try just date
-        if let Ok(date) = chrono::NaiveDate::parse_from_str(normalized.trim(), "%Y-%m-%d") {
-            if let Some(dt) = date.and_hms_opt(0, 0, 0) {
-                return Token::Time(dt);
-            }
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(normalized.trim(), "%Y-%m-%d")
+            && let Some(dt) = date.and_hms_opt(0, 0, 0)
+        {
+            return Token::Time(dt);
         }
         // Fallback: treat as string
         Token::Str(s)

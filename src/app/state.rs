@@ -5,7 +5,7 @@ use log::info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::sync::Mutex;
 
-use crate::config::{save_app_data, save_config, ChatConfig, ChatData, Config};
+use crate::config::{ChatConfig, ChatData, Config, save_app_data, save_config};
 
 use super::{CONFIG_FILE, DATA_FILE};
 

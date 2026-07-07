@@ -1,21 +1,21 @@
 use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use axum::Router;
 use axum::extract::State;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
-use axum::Router;
 use log::{info, warn};
 use serde::Serialize;
 use tokio::net::TcpListener;
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{Mutex, broadcast, watch};
 use tokio_stream::wrappers::BroadcastStream;
-use tokio_stream::{once, StreamExt};
+use tokio_stream::{StreamExt, once};
 
 use crate::format::format_byte;
 

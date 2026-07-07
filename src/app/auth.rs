@@ -6,8 +6,8 @@ use log::warn;
 
 use crate::config::load_config;
 
-use super::shutdown::flood_wait_secs;
 use super::CONFIG_FILE;
+use super::shutdown::flood_wait_secs;
 
 const MAX_AUTH_FLOOD_RETRIES: u32 = 3;
 

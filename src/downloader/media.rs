@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use grammers_client::media::Media;
 use grammers_client::Client;
+use grammers_client::media::Media;
 use indicatif::{MultiProgress, ProgressBar};
 use log::{debug, info, warn};
 use rustc_hash::FxHashSet as HashSet;
 use tokio::sync::Mutex;
 
-use crate::app::{sleep_cancellable, wait_paused, Shutdown};
+use crate::app::{Shutdown, sleep_cancellable, wait_paused};
 use crate::config::Config;
 use crate::format::format_byte;
 use crate::webui::WebState;
@@ -17,7 +17,7 @@ use crate::webui::WebState;
 use super::chunks::download_concurrent;
 use super::finalize::{discard_partial, finalize_download};
 use super::paths::build_media_paths;
-use super::progress::{progress_style, resume_offset, DownloadProgress};
+use super::progress::{DownloadProgress, progress_style, resume_offset};
 
 const RETRY_LIMIT: u32 = 3;
 const RETRY_DELAY_SECS: u64 = 5;

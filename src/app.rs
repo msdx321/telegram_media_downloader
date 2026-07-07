@@ -14,12 +14,12 @@ use log::{debug, info};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::sync::{Mutex, Semaphore};
 
-use crate::config::{load_app_data, ChatData, Config};
+use crate::config::{ChatData, Config, load_app_data};
 use crate::webui::WebState;
 
 use auth::authorize_interactive;
-use scan::{run_check_cycle, DownloadRuntime};
-pub(crate) use shutdown::{flood_wait_secs, sleep_cancellable, wait_paused, Shutdown};
+use scan::{DownloadRuntime, run_check_cycle};
+pub(crate) use shutdown::{Shutdown, flood_wait_secs, sleep_cancellable, wait_paused};
 use state::{log_config_summary, log_shutdown_summary, persist_state};
 
 pub(crate) const CONFIG_FILE: &str = "config.yaml";
@@ -87,7 +87,10 @@ pub(crate) async fn run_downloader(
         debug!(
             "cycle {cycle_no}: persisted state to {DATA_FILE} and {CONFIG_FILE} ({} file ids, {} chats pending)",
             file_ids.lock().await.len(),
-            data_chats.values().map(|c| c.ids_to_retry.len()).sum::<usize>()
+            data_chats
+                .values()
+                .map(|c| c.ids_to_retry.len())
+                .sum::<usize>()
         );
 
         if !completed || shutdown.is_cancelled() {

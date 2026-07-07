@@ -7,7 +7,7 @@ mod webui;
 
 use std::sync::Arc;
 
-use app::{run_downloader, Shutdown, CONFIG_FILE};
+use app::{CONFIG_FILE, Shutdown, run_downloader};
 use config::load_config;
 use log::{info, warn};
 use tokio::runtime::Builder;
@@ -84,7 +84,7 @@ fn install_signal_handler(shutdown: Shutdown) {
 
 #[cfg(unix)]
 async fn wait_for_interrupt() -> bool {
-    use tokio::signal::unix::{signal, SignalKind};
+    use tokio::signal::unix::{SignalKind, signal};
     match signal(SignalKind::interrupt()) {
         Ok(mut sig) => sig.recv().await.is_some(),
         Err(e) => {

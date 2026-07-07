@@ -54,10 +54,10 @@ pub(crate) fn flood_wait_secs(err: &str) -> Option<u64> {
                 .chars()
                 .take_while(|c| c.is_ascii_digit())
                 .collect();
-            if let Ok(n) = digits.parse::<u64>() {
-                if n > 0 {
-                    return Some(n);
-                }
+            if let Ok(n) = digits.parse::<u64>()
+                && n > 0
+            {
+                return Some(n);
             }
         }
     }

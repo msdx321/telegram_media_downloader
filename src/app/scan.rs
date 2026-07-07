@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -19,7 +19,7 @@ use crate::filter::{Parser, Value, VarLookup};
 use crate::format::replace_date_time;
 use crate::webui::WebState;
 
-use super::shutdown::{flood_wait_secs, sleep_cancellable, wait_paused, Shutdown};
+use super::shutdown::{Shutdown, flood_wait_secs, sleep_cancellable, wait_paused};
 use super::state::{sync_retry_set, update_chat_state};
 
 /// Outcome of scanning one chat.

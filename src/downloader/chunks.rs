@@ -1,10 +1,10 @@
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use grammers_client::media::Media;
 use grammers_client::Client;
+use grammers_client::media::Media;
 use log::warn;
 use rustc_hash::FxHashMap as HashMap;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
@@ -12,10 +12,10 @@ use tokio::sync::mpsc;
 
 use super::finalize::preallocate;
 use super::progress::{
-    report_download_progress, write_progress, DownloadProgress, DOWNLOAD_CHUNK_SIZE,
-    PROGRESS_REPORT_INTERVAL,
+    DOWNLOAD_CHUNK_SIZE, DownloadProgress, PROGRESS_REPORT_INTERVAL, report_download_progress,
+    write_progress,
 };
-use crate::app::{flood_wait_secs, sleep_cancellable, wait_paused, Shutdown};
+use crate::app::{Shutdown, flood_wait_secs, sleep_cancellable, wait_paused};
 
 const RETRY_DELAY_SECS: u64 = 5;
 const CHUNK_RETRY_LIMIT: u32 = 3;
