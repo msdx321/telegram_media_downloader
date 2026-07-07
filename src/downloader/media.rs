@@ -6,7 +6,7 @@ use grammers_client::media::Media;
 use grammers_client::Client;
 use indicatif::{MultiProgress, ProgressBar};
 use log::{debug, info, warn};
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 use tokio::sync::Mutex;
 
 use crate::app::{sleep_cancellable, wait_paused, Shutdown};

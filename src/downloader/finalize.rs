@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use log::info;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 use tokio::sync::Mutex;
 
 use crate::format::format_byte;

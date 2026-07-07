@@ -11,7 +11,7 @@ use grammers_mtsender::SenderPool;
 use grammers_session::storages::SqliteSession;
 use indicatif::MultiProgress;
 use log::{debug, info};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::sync::{Mutex, Semaphore};
 
 use crate::config::{load_app_data, ChatData, Config};

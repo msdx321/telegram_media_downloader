@@ -6,7 +6,7 @@ use anyhow::Context;
 use grammers_client::Client;
 use indicatif::MultiProgress;
 use log::{debug, error, info, warn};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use tokio::sync::{Mutex, Semaphore};
 use tokio::task::JoinSet;
 
