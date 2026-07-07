@@ -307,32 +307,94 @@ impl<'a> Iterator for Lexer<'a> {
 }
 
 pub struct Parser {
-    tokens: Vec<Token>,
+    expr: Result<Expr, String>,
 }
 
 impl Parser {
     pub fn new(input: &str) -> Self {
         let lexer = Lexer::new(input);
+        let tokens: Vec<Token> = lexer.collect();
         Self {
-            tokens: lexer.collect(),
+            expr: ExprParser {
+                tokens: &tokens,
+                pos: 0,
+            }
+            .parse(),
         }
     }
 
     pub fn parse(&self, vars: &impl VarLookup) -> Result<Value, String> {
-        Cursor {
-            tokens: &self.tokens,
-            pos: 0,
-        }
-        .parse(vars)
+        self.expr.as_ref().map_err(Clone::clone)?.eval(vars)
     }
 }
 
-struct Cursor<'a> {
+#[derive(Debug, Clone)]
+enum Expr {
+    Literal(Value),
+    Var(String),
+    UnaryMinus(Box<Expr>),
+    Binary {
+        left: Box<Expr>,
+        op: BinaryOp,
+        right: Box<Expr>,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BinaryOp {
+    Or,
+    And,
+    Eq,
+    Ne,
+    Gt,
+    Lt,
+    Ge,
+    Le,
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+impl Expr {
+    fn eval(&self, vars: &impl VarLookup) -> Result<Value, String> {
+        match self {
+            Expr::Literal(value) => Ok(value.clone()),
+            Expr::Var(name) => vars
+                .get_var(name)
+                .ok_or_else(|| format!("undefined variable: {name}")),
+            Expr::UnaryMinus(expr) => match expr.eval(vars)? {
+                Value::Int(v) => Ok(Value::Int(-v)),
+                Value::Float(v) => Ok(Value::Float(-v)),
+                _ => Err("cannot negate non-numeric value".into()),
+            },
+            Expr::Binary { left, op, right } => {
+                let left = left.eval(vars)?;
+                let right = right.eval(vars)?;
+                Ok(match op {
+                    BinaryOp::Or => truthy_or(left, right),
+                    BinaryOp::And => truthy_and(left, right),
+                    BinaryOp::Eq
+                    | BinaryOp::Ne
+                    | BinaryOp::Gt
+                    | BinaryOp::Lt
+                    | BinaryOp::Ge
+                    | BinaryOp::Le => compare(&left, *op, &right),
+                    BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+                        arithmetic(&left, *op, &right)
+                    }
+                })
+            }
+        }
+    }
+}
+
+struct ExprParser<'a> {
     tokens: &'a [Token],
     pos: usize,
 }
 
-impl Cursor<'_> {
+impl ExprParser<'_> {
     fn peek(&self) -> &Token {
         self.tokens.get(self.pos).unwrap_or(&Token::Eof)
     }
@@ -351,60 +413,80 @@ impl Cursor<'_> {
         }
     }
 
-    fn parse(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let val = self.or_expr(vars)?;
+    fn parse(&mut self) -> Result<Expr, String> {
+        let expr = self.or_expr()?;
         if !matches!(self.peek(), Token::Eof) {
             return Err(format!(
                 "unexpected token after expression: {:?}",
                 self.peek()
             ));
         }
-        Ok(val)
+        Ok(expr)
     }
 
-    fn or_expr(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let mut left = self.and_expr(vars)?;
+    fn or_expr(&mut self) -> Result<Expr, String> {
+        let mut left = self.and_expr()?;
         while matches!(self.peek(), Token::Or) {
             self.advance();
-            let right = self.and_expr(vars)?;
-            left = truthy_or(left, right);
+            let right = self.and_expr()?;
+            left = Expr::Binary {
+                left: Box::new(left),
+                op: BinaryOp::Or,
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
 
-    fn and_expr(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let mut left = self.comp(vars)?;
+    fn and_expr(&mut self) -> Result<Expr, String> {
+        let mut left = self.comp()?;
         while matches!(self.peek(), Token::And) {
             self.advance();
-            let right = self.comp(vars)?;
-            left = truthy_and(left, right);
+            let right = self.comp()?;
+            left = Expr::Binary {
+                left: Box::new(left),
+                op: BinaryOp::And,
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
 
-    fn comp(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let left = self.add(vars)?;
+    fn comp(&mut self) -> Result<Expr, String> {
+        let left = self.add()?;
         match self.peek() {
             Token::Eq | Token::Ne | Token::Gt | Token::Lt | Token::Ge | Token::Le => {
-                let op = self.advance().clone();
-                let right = self.add(vars)?;
-                Ok(compare(&left, &op, &right))
+                let op = token_to_binary_op(self.advance())?;
+                let right = self.add()?;
+                Ok(Expr::Binary {
+                    left: Box::new(left),
+                    op,
+                    right: Box::new(right),
+                })
             }
             _ => Ok(left),
         }
     }
 
-    fn add(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let mut left = self.mul(vars)?;
+    fn add(&mut self) -> Result<Expr, String> {
+        let mut left = self.mul()?;
         loop {
             match self.peek() {
                 Token::Plus => {
                     self.advance();
-                    left = arithmetic(&left, "+", &self.mul(vars)?);
+                    left = Expr::Binary {
+                        left: Box::new(left),
+                        op: BinaryOp::Add,
+                        right: Box::new(self.mul()?),
+                    };
                 }
                 Token::Minus => {
                     self.advance();
-                    left = arithmetic(&left, "-", &self.mul(vars)?);
+                    left = Expr::Binary {
+                        left: Box::new(left),
+                        op: BinaryOp::Sub,
+                        right: Box::new(self.mul()?),
+                    };
                 }
                 _ => break,
             }
@@ -412,17 +494,25 @@ impl Cursor<'_> {
         Ok(left)
     }
 
-    fn mul(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
-        let mut left = self.unary(vars)?;
+    fn mul(&mut self) -> Result<Expr, String> {
+        let mut left = self.unary()?;
         loop {
             match self.peek() {
                 Token::Star => {
                     self.advance();
-                    left = arithmetic(&left, "*", &self.unary(vars)?);
+                    left = Expr::Binary {
+                        left: Box::new(left),
+                        op: BinaryOp::Mul,
+                        right: Box::new(self.unary()?),
+                    };
                 }
                 Token::Slash => {
                     self.advance();
-                    left = arithmetic(&left, "/", &self.unary(vars)?);
+                    left = Expr::Binary {
+                        left: Box::new(left),
+                        op: BinaryOp::Div,
+                        right: Box::new(self.unary()?),
+                    };
                 }
                 _ => break,
             }
@@ -430,53 +520,59 @@ impl Cursor<'_> {
         Ok(left)
     }
 
-    fn unary(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
+    fn unary(&mut self) -> Result<Expr, String> {
         if matches!(self.peek(), Token::Minus) {
             self.advance();
-            let val = self.unary(vars)?;
-            return match val {
-                Value::Int(v) => Ok(Value::Int(-v)),
-                Value::Float(v) => Ok(Value::Float(-v)),
-                _ => Err("cannot negate non-numeric value".into()),
-            };
+            return Ok(Expr::UnaryMinus(Box::new(self.unary()?)));
         }
-        self.primary(vars)
+        self.primary()
     }
 
-    fn primary(&mut self, vars: &impl VarLookup) -> Result<Value, String> {
+    fn primary(&mut self) -> Result<Expr, String> {
         match self.peek() {
             Token::Num(n) => {
                 let v = *n;
                 self.advance();
-                Ok(Value::Int(v))
+                Ok(Expr::Literal(Value::Int(v)))
             }
             Token::Str(_) => match self.advance().clone() {
-                Token::Str(s) => Ok(Value::Str(s)),
+                Token::Str(s) => Ok(Expr::Literal(Value::Str(s))),
                 t => Err(format!("expected string, got {t:?}")),
             },
             Token::ReStr(_) => match self.advance().clone() {
-                Token::ReStr(r) => Ok(Value::ReStr(r)),
+                Token::ReStr(r) => Ok(Expr::Literal(Value::ReStr(r))),
                 t => Err(format!("expected regex string, got {t:?}")),
             },
             Token::Time(dt) => {
                 let v = *dt;
                 self.advance();
-                Ok(Value::DateTime(v))
+                Ok(Expr::Literal(Value::DateTime(v)))
             }
             Token::Name(name) => {
                 let n = name.clone();
                 self.advance();
-                vars.get_var(&n)
-                    .ok_or_else(|| format!("undefined variable: {n}"))
+                Ok(Expr::Var(n))
             }
             Token::LParen => {
                 self.advance();
-                let v = self.or_expr(vars)?;
+                let v = self.or_expr()?;
                 self.expect(|t| matches!(t, Token::RParen), ")")?;
                 Ok(v)
             }
             _ => Err(format!("unexpected token: {:?}", self.peek())),
         }
+    }
+}
+
+fn token_to_binary_op(token: &Token) -> Result<BinaryOp, String> {
+    match token {
+        Token::Eq => Ok(BinaryOp::Eq),
+        Token::Ne => Ok(BinaryOp::Ne),
+        Token::Gt => Ok(BinaryOp::Gt),
+        Token::Lt => Ok(BinaryOp::Lt),
+        Token::Ge => Ok(BinaryOp::Ge),
+        Token::Le => Ok(BinaryOp::Le),
+        _ => Err(format!("expected comparison operator, got {token:?}")),
     }
 }
 
@@ -494,7 +590,7 @@ fn truthy_or(a: Value, b: Value) -> Value {
     }
 }
 
-fn compare(left: &Value, op: &Token, right: &Value) -> Value {
+fn compare(left: &Value, op: BinaryOp, right: &Value) -> Value {
     let result = match (left, right) {
         (Value::Int(l), Value::Int(r)) => cmp_num(*l as f64, *r as f64, op),
         (Value::Float(l), Value::Float(r)) => cmp_num(*l, *r, op),
@@ -502,13 +598,13 @@ fn compare(left: &Value, op: &Token, right: &Value) -> Value {
         (Value::Float(l), Value::Int(r)) => cmp_num(*l, *r as f64, op),
         (Value::Str(l), Value::Str(r)) => cmp_str(l, r, op),
         (Value::Str(l), Value::ReStr(r)) => match op {
-            Token::Eq => r.is_match(l),
-            Token::Ne => !r.is_match(l),
+            BinaryOp::Eq => r.is_match(l),
+            BinaryOp::Ne => !r.is_match(l),
             _ => false,
         },
         (Value::ReStr(l), Value::Str(r)) => match op {
-            Token::Eq => l.is_match(r),
-            Token::Ne => !l.is_match(r),
+            BinaryOp::Eq => l.is_match(r),
+            BinaryOp::Ne => !l.is_match(r),
             _ => false,
         },
         (Value::DateTime(l), Value::DateTime(r)) => cmp_num(
@@ -521,38 +617,38 @@ fn compare(left: &Value, op: &Token, right: &Value) -> Value {
     Value::Bool(result)
 }
 
-fn cmp_num(l: f64, r: f64, op: &Token) -> bool {
+fn cmp_num(l: f64, r: f64, op: BinaryOp) -> bool {
     match op {
-        Token::Eq => (l - r).abs() < f64::EPSILON,
-        Token::Ne => (l - r).abs() >= f64::EPSILON,
-        Token::Gt => l > r,
-        Token::Lt => l < r,
-        Token::Ge => l >= r,
-        Token::Le => l <= r,
+        BinaryOp::Eq => (l - r).abs() < f64::EPSILON,
+        BinaryOp::Ne => (l - r).abs() >= f64::EPSILON,
+        BinaryOp::Gt => l > r,
+        BinaryOp::Lt => l < r,
+        BinaryOp::Ge => l >= r,
+        BinaryOp::Le => l <= r,
         _ => false,
     }
 }
 
-fn cmp_str(l: &str, r: &str, op: &Token) -> bool {
+fn cmp_str(l: &str, r: &str, op: BinaryOp) -> bool {
     match op {
-        Token::Eq => l == r,
-        Token::Ne => l != r,
-        Token::Gt => l > r,
-        Token::Lt => l < r,
-        Token::Ge => l >= r,
-        Token::Le => l <= r,
+        BinaryOp::Eq => l == r,
+        BinaryOp::Ne => l != r,
+        BinaryOp::Gt => l > r,
+        BinaryOp::Lt => l < r,
+        BinaryOp::Ge => l >= r,
+        BinaryOp::Le => l <= r,
         _ => false,
     }
 }
 
-fn arithmetic(left: &Value, op: &str, right: &Value) -> Value {
+fn arithmetic(left: &Value, op: BinaryOp, right: &Value) -> Value {
     let l = as_f64(left);
     let r = as_f64(right);
     let result = match op {
-        "+" => l + r,
-        "-" => l - r,
-        "*" => l * r,
-        "/" => {
+        BinaryOp::Add => l + r,
+        BinaryOp::Sub => l - r,
+        BinaryOp::Mul => l * r,
+        BinaryOp::Div => {
             if r == 0.0 {
                 return Value::Float(f64::NAN);
             }

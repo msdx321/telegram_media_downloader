@@ -147,12 +147,6 @@ async fn process_chat(
         .context("peer not found")?;
 
     let mut messages = client.iter_messages(peer);
-    let total = messages
-        .total()
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
-        .unwrap_or(0);
-    info!("chat {}: ~{total} messages available", chat_cfg.chat_id);
 
     let filter_fn = build_filter_fn(chat_cfg, cfg);
     let task_cfg = Arc::new(cfg.clone());
