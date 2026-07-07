@@ -28,6 +28,9 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
       - name: Format check
         run: cargo fmt --check
 

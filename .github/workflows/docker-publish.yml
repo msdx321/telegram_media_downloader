@@ -69,6 +69,27 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Package amd64 release binary
+        if: matrix.platform == 'amd64'
+        run: |
+          image="${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }}"
+          docker pull "$image"
+          container="$(docker create "$image")"
+          mkdir -p dist
+          docker cp "$container:/usr/local/bin/tmd" dist/tmd
+          docker rm "$container"
+          cp README.md LICENSE dist/
+          (cd dist && zip -r "../tmd-${{ github.ref_name }}-linux-amd64.zip" .)
+
+      - name: Upload release binary
+        if: matrix.platform == 'amd64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmd-linux-amd64
+          path: tmd-${{ github.ref_name }}-linux-amd64.zip
+          if-no-files-found: error
+          retention-days: 1
+
   merge:
     runs-on: ubuntu-latest
     needs: build
@@ -112,3 +133,22 @@ jobs:
       - name: Inspect image
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
+
+  release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: merge
+    permissions:
+      contents: write
+    steps:
+      - name: Download release binary
+        uses: actions/download-artifact@v4
+        with:
+          name: tmd-linux-amd64
+          path: dist
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/tmd-${{ github.ref_name }}-linux-amd64.zip
+          generate_release_notes: true

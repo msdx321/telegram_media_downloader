@@ -1,21 +1,26 @@
-# ── builder: compile a static release binary (musl) ───────────────────────
-FROM rust:1-alpine AS builder
+# ── chef: shared Rust build environment and dependency planner ────────────
+FROM rust:1-alpine AS chef
 
 # build-base provides gcc + musl-dev + make in case any dependency's build
 # script compiles C code.
 RUN apk add --no-cache build-base
+RUN cargo install cargo-chef --locked
 
 WORKDIR /app
 
-# Cache dependencies: build a throwaway library crate first so the expensive
-# dep tree (grammers, tokio, axum, ...) is reused unless Cargo.toml/Cargo.lock
-# change. Using a library (not a bin) means there is no stale `tmd` binary
-# fingerprint to confuse cargo when the real source is overlaid next.
+# ── planner: compute dependency recipe for Docker layer caching ────────────
+FROM chef AS planner
+
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir src \
-    && echo '' > src/lib.rs \
-    && cargo build --release --locked \
-    && rm -rf src
+COPY src ./src
+COPY static ./static
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ── builder: compile a static release binary (musl) ───────────────────────
+FROM chef AS builder
+
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --locked --recipe-path recipe.json
 
 COPY src ./src
 COPY static ./static
