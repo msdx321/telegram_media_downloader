@@ -1,6 +1,6 @@
 [package]
 name = "tmd"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 authors = ["msdx321 <msdx321@gmail.com>", "tangyoha <tangyoha@outlook.com>"]
 description = "Telegram Media Downloader - native Rust port"
