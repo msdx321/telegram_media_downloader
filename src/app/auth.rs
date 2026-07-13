@@ -4,16 +4,11 @@ use std::time::Duration;
 use grammers_client::{Client, SignInError};
 use log::warn;
 
-use crate::config::load_config;
-
-use super::CONFIG_FILE;
 use super::shutdown::flood_wait_secs;
 
 const MAX_AUTH_FLOOD_RETRIES: u32 = 3;
 
-pub(super) async fn authorize_interactive(client: &Client) -> anyhow::Result<()> {
-    let cfg = load_config(CONFIG_FILE)?;
-
+pub(super) async fn authorize_interactive(client: &Client, api_hash: &str) -> anyhow::Result<()> {
     print!("Enter phone number (international format): ");
     io::stdout().flush().ok();
     let mut phone = String::new();
@@ -25,7 +20,7 @@ pub(super) async fn authorize_interactive(client: &Client) -> anyhow::Result<()>
     let token = {
         let mut flood_retries = 0u32;
         loop {
-            match client.request_login_code(phone, &cfg.api_hash).await {
+            match client.request_login_code(phone, api_hash).await {
                 Ok(token) => break token,
                 Err(e) => {
                     let err_str = e.to_string();

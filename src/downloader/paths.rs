@@ -5,7 +5,7 @@ use grammers_client::media::Media;
 use crate::config::Config;
 use crate::format::{truncate_filename, validate_title};
 
-use super::metadata::{media_kind_and_ext, mime_to_ext};
+use super::metadata::media_kind_and_ext;
 
 /// Returns (temp_path, final_path) for a media download.
 pub(super) fn build_media_paths(
@@ -22,7 +22,7 @@ pub(super) fn build_media_paths(
     let date = msg.date().naive_utc();
     let datetime_str = date.format(&cfg.date_format).to_string();
 
-    let Some((media_type_str, _)) = media_kind_and_ext(media) else {
+    let Some((media_type_str, ext)) = media_kind_and_ext(media) else {
         return Err(anyhow::anyhow!("unsupported media"));
     };
 
@@ -36,22 +36,14 @@ pub(super) fn build_media_paths(
         }
     }
 
-    let (stem, ext) = match media {
-        Media::Photo(_) => (msg.id().to_string(), "jpg".to_string()),
+    let stem = match media {
+        Media::Photo(_) => msg.id().to_string(),
         Media::Document(doc) => {
-            let mut stem = String::new();
-            let mut ext = doc
-                .mime_type()
-                .map(|m| mime_to_ext(m).to_string())
-                .unwrap_or_else(|| "unknown".to_string());
-            if let Some(name) = doc.name() {
-                if let Some(dot) = name.rfind('.') {
-                    stem = name[..dot].to_string();
-                    ext = name[dot + 1..].to_string();
-                } else {
-                    stem = name.to_string();
-                }
-            }
+            let mut stem = doc
+                .name()
+                .map(|name| name.rsplit_once('.').map_or(name, |(stem, _)| stem))
+                .unwrap_or_default()
+                .to_string();
             if stem.is_empty() {
                 stem = format!("file_{}", doc.id());
             }
@@ -70,14 +62,11 @@ pub(super) fn build_media_paths(
                 }
             }
             let sep = &cfg.file_name_prefix_split;
-            (
-                if parts.is_empty() {
-                    msg.id().to_string()
-                } else {
-                    parts.join(sep)
-                },
-                ext,
-            )
+            if parts.is_empty() {
+                msg.id().to_string()
+            } else {
+                parts.join(sep)
+            }
         }
         _ => return Err(anyhow::anyhow!("unsupported media")),
     };

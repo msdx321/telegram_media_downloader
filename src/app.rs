@@ -33,7 +33,7 @@ pub(crate) async fn run_downloader(
 ) -> anyhow::Result<()> {
     web_state.set_status("running").await;
 
-    let mut data = load_app_data(DATA_FILE)?;
+    let data = load_app_data(DATA_FILE)?;
     std::fs::create_dir_all(&cfg.save_path)?;
     std::fs::create_dir_all("sessions")?;
 
@@ -47,17 +47,17 @@ pub(crate) async fn run_downloader(
     let _runner_handle = tokio::spawn(runner.run());
 
     if !client.is_authorized().await.unwrap_or(false) {
-        authorize_interactive(&client).await?;
+        authorize_interactive(&client, &cfg.api_hash).await?;
         info!("Session saved to {SESSION_FILE}");
     }
     info!("Authorized - ready");
 
     let file_ids: Arc<Mutex<HashSet<String>>> =
-        Arc::new(Mutex::new(data.downloaded_file_ids.drain(..).collect()));
+        Arc::new(Mutex::new(data.downloaded_file_ids.into_iter().collect()));
 
     let mut data_chats: HashMap<String, ChatData> = data
         .chat
-        .drain(..)
+        .into_iter()
         .map(|d| (d.chat_id.clone(), d))
         .collect();
 

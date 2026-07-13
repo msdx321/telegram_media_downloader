@@ -10,8 +10,8 @@ use crate::config::{ChatConfig, ChatData, Config, save_app_data, save_config};
 use super::{CONFIG_FILE, DATA_FILE};
 
 /// Build `data.yaml` from the live file-id cache and per-chat retry sets and
-/// write it atomically. `config.yaml` is updated incrementally by
-/// `update_chat_state` as each chat finishes, so only `data.yaml` is saved here.
+/// write it. `config.yaml` is updated incrementally by `update_chat_state` as
+/// each chat finishes, so only `data.yaml` is saved here.
 pub(super) async fn persist_state(
     file_ids: &Arc<Mutex<HashSet<String>>>,
     data_chats: &HashMap<String, ChatData>,
